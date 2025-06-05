@@ -382,27 +382,32 @@ Return JSON format only."""
             filtered = filtered[runtime_mask]
             print(f"DEBUG: After runtime filtering: {len(filtered)} movies")
 
-        # Description keyword filtering
+        # Description keyword filtering with relevance scoring
         if params.get('description_keywords'):
             keywords = params['description_keywords']
             print(f"DEBUG: Filtering by description keywords: {keywords}")
             
-            # Create a mask that checks if any of the keywords appear in the description
-            description_mask = pd.Series([False] * len(filtered), index=filtered.index)
+            # Create a relevance score for each movie based on keyword matches
+            filtered['keyword_score'] = 0
             
             for keyword in keywords:
                 if len(keyword) > 2:  # Only search meaningful keywords
                     keyword_mask = filtered['description'].str.contains(keyword, case=False, na=False)
-                    description_mask = description_mask | keyword_mask
+                    # Add points for each keyword match
+                    filtered.loc[keyword_mask, 'keyword_score'] += 1
             
-            if description_mask.any():
-                filtered = filtered[description_mask]
+            # Only keep movies that have at least one keyword match
+            keyword_filtered = filtered[filtered['keyword_score'] > 0]
+            
+            if not keyword_filtered.empty:
+                filtered = keyword_filtered
                 print(f"DEBUG: After description filtering: {len(filtered)} movies")
                 
                 # Debug: Check if movie "706" is in the results
                 movie_706 = filtered[filtered['name'] == '706']
                 if not movie_706.empty:
-                    print(f"DEBUG: Found movie '706' with popularity {movie_706.iloc[0]['popular']}")
+                    score = movie_706.iloc[0]['keyword_score']
+                    print(f"DEBUG: Found movie '706' with popularity {movie_706.iloc[0]['popular']} and keyword score {score}")
                 else:
                     print(f"DEBUG: Movie '706' not found in filtered results")
                     
@@ -438,8 +443,13 @@ Return JSON format only."""
         
         # Smart sorting logic for non-popularity filtered results
         if not params.get('popular') or params.get('popular') not in ['high', 'medium', 'low']:
+            # If we have keyword scores, prioritize relevance over popularity
+            if 'keyword_score' in filtered.columns and params.get('description_keywords'):
+                # Sort by keyword relevance first, then popularity
+                filtered = filtered.sort_values(['keyword_score', 'popular', 'released'], ascending=[False, False, False])
+                print(f"DEBUG: Sorted by keyword relevance - top movie: {filtered.iloc[0]['name'] if not filtered.empty else 'None'}")
             # Sort by a combination of popularity and recency with some randomness
-            if 'popular' in filtered.columns and 'released' in filtered.columns:
+            elif 'popular' in filtered.columns and 'released' in filtered.columns:
                 # Normalize released year (focus on 2000+ movies)
                 max_year = filtered['released'].max()
                 min_year = max(filtered['released'].min(), 2000)
