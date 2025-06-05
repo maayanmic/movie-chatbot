@@ -93,7 +93,7 @@ Return JSON format only."""
                     response_text = response_text[3:-3].strip()
                 
                 params = json.loads(response_text)
-                print(f"DEBUG: Extracted parameters: {params}")
+                print(f"DEBUG: Gemini extracted parameters: {params}")
                 return params
             else:
                 return self.basic_parameter_extraction(user_query)
@@ -152,7 +152,14 @@ Return JSON format only."""
         
         # If we found potential actor names, use the first one
         if potential_names:
-            params['actor'] = potential_names[0]
+            # Check if this might be a director query instead
+            director_indicators = ['director', 'directed', 'filme by', 'made by']
+            is_director_query = any(indicator in query_lower for indicator in director_indicators)
+            
+            if is_director_query:
+                params['director'] = potential_names[0]
+            else:
+                params['actor'] = potential_names[0]
         
         return params
     
@@ -231,8 +238,27 @@ Return JSON format only."""
         
         # Director filtering
         if params.get('director'):
-            director_mask = filtered['director'].str.contains(params['director'], case=False, na=False)
-            filtered = filtered[director_mask]
+            director_name = params['director']
+            print(f"DEBUG: Searching for director: '{director_name}'")
+            
+            # Try multiple search strategies like we do for actors
+            director_mask = filtered['director'].str.contains(director_name, case=False, na=False)
+            director_results = filtered[director_mask]
+            
+            # If no results, try searching for individual parts of the name
+            if director_results.empty and ' ' in director_name:
+                name_parts = director_name.split()
+                for part in name_parts:
+                    if len(part) > 2:  # Only search meaningful name parts
+                        part_mask = filtered['director'].str.contains(part, case=False, na=False)
+                        part_results = filtered[part_mask]
+                        if not part_results.empty:
+                            director_results = part_results
+                            print(f"DEBUG: Found movies using director name part '{part}'")
+                            break
+            
+            filtered = director_results
+            print(f"DEBUG: Found {len(filtered)} movies with director search")
         
         # Ensure we have results before sorting
         if filtered.empty:
