@@ -92,6 +92,7 @@ Extract the following information from the user's query and return as JSON:
 - director: director name if mentioned
 - runtime: if duration is mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90)
 - runtime_operator: "greater_than", "less_than", "equal_to" or "between" for runtime comparisons
+- description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"])
 - intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
 
 IMPORTANT: Always convert time references to minutes:
@@ -145,6 +146,7 @@ Return JSON format only."""
             'popular': None,
             'actor': None,
             'director': None,
+            'description_keywords': None,
             'intent': 'recommend'
         }
         
@@ -200,6 +202,26 @@ Return JSON format only."""
                 params['director'] = filtered_names[0]
             else:
                 params['actor'] = filtered_names[0]
+        
+        # Extract keywords for description search
+        # Look for descriptive words that might appear in movie plots
+        description_keywords = []
+        story_indicators = ['about', 'movie about', 'film about', 'story of', 'follows', 'centers on']
+        
+        for indicator in story_indicators:
+            if indicator in query_lower:
+                # Extract text after the indicator
+                start_pos = query_lower.find(indicator) + len(indicator)
+                remaining_text = query[start_pos:].strip()
+                # Extract meaningful words (skip common words)
+                words = remaining_text.split()
+                meaningful_words = [word for word in words if len(word) > 3 and 
+                                  word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which']]
+                description_keywords.extend(meaningful_words[:5])  # Take first 5 meaningful words
+                break
+        
+        if description_keywords:
+            params['description_keywords'] = description_keywords
         
         return params
     
@@ -355,6 +377,25 @@ Return JSON format only."""
             
             filtered = filtered[runtime_mask]
             print(f"DEBUG: After runtime filtering: {len(filtered)} movies")
+
+        # Description keyword filtering
+        if params.get('description_keywords'):
+            keywords = params['description_keywords']
+            print(f"DEBUG: Filtering by description keywords: {keywords}")
+            
+            # Create a mask that checks if any of the keywords appear in the description
+            description_mask = pd.Series([False] * len(filtered), index=filtered.index)
+            
+            for keyword in keywords:
+                if len(keyword) > 2:  # Only search meaningful keywords
+                    keyword_mask = filtered['description'].str.contains(keyword, case=False, na=False)
+                    description_mask = description_mask | keyword_mask
+            
+            if description_mask.any():
+                filtered = filtered[description_mask]
+                print(f"DEBUG: After description filtering: {len(filtered)} movies")
+            else:
+                print(f"DEBUG: No movies found matching description keywords")
 
         # Ensure we have results before sorting
         if filtered.empty:
