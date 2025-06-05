@@ -10,8 +10,8 @@ def load_recommender():
 
 def main():
     st.title("🎬 Movie Recommendation Chatbot")
-    st.markdown("### Ask me for movie recommendations in Hebrew or English!")
-    st.markdown("*Examples: 'יש סרטים מתאימים לילד בן 8?', 'What comedies are good for teenagers?'*")
+    st.markdown("### Ask me for movie recommendations!")
+    st.markdown("*Examples: 'What movies are suitable for an 8-year-old?', 'What comedies are good for teenagers?'*")
     
     # Initialize session state for chat history
     if "messages" not in st.session_state:
