@@ -64,6 +64,13 @@ class MovieRecommender:
             df['age_group'] = df['age_group'].astype(str).fillna('')
             
             print(f"Successfully loaded {len(df)} movies")
+            print(f"DEBUG: CSV columns: {list(df.columns)}")
+            
+            # Debug specific movie data
+            if 'Stuck Apart' in df['name'].values:
+                stuck_apart_data = df[df['name'] == 'Stuck Apart']
+                print(f"DEBUG: Stuck Apart data in CSV: {stuck_apart_data[['name', 'popular']].iloc[0].to_dict()}")
+            
             return df
             
         except FileNotFoundError:
