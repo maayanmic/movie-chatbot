@@ -135,7 +135,7 @@ Return JSON format only."""
     def generate_response(self, filtered_movies, params, original_query):
         """Generate a natural language response using Gemini."""
         if filtered_movies.empty:
-            return self.generate_no_results_response(params)
+            return self.generate_alternative_suggestions(params, original_query)
         
         # Prepare movie data for the prompt
         movie_list = []
@@ -175,9 +175,91 @@ Format the response naturally, not as a list or formal structure."""
         except Exception as e:
             return self.generate_fallback_response(filtered_movies, params)
     
-    def generate_no_results_response(self, params):
-        """Generate response when no movies match the criteria."""
-        return "I'm sorry, I couldn't find any movies matching your criteria. Try adjusting your requirements or asking about a different genre."
+    def generate_alternative_suggestions(self, params, original_query):
+        """Generate alternative suggestions when no exact matches are found."""
+        # Try to find alternatives by relaxing constraints
+        alternatives = []
+        
+        # If looking for specific age group + genre, try just the genre
+        if params.get('age_group') and params.get('genre'):
+            genre_only = {'genre': params['genre']}
+            alt_movies = self.filter_movies(genre_only)
+            if not alt_movies.empty:
+                alternatives.append(f"I found {params['genre']} movies for other age groups")
+        
+        # If looking for specific genre + age, try just the age group
+        elif params.get('genre') and params.get('age_group'):
+            age_only = {'age_group': params['age_group']}
+            alt_movies = self.filter_movies(age_only)
+            if not alt_movies.empty:
+                alternatives.append(f"I found movies suitable for {params['age_group']} in other genres")
+        
+        # If looking for specific genre, suggest similar genres
+        elif params.get('genre'):
+            genre = params['genre'].lower()
+            similar_genres = {
+                'horror': ['thriller', 'drama'],
+                'comedy': ['family', 'romance'],
+                'action': ['adventure', 'thriller'],
+                'drama': ['thriller', 'romance'],
+                'family': ['comedy', 'animation']
+            }
+            
+            for similar in similar_genres.get(genre, []):
+                similar_params = params.copy()
+                similar_params['genre'] = similar
+                alt_movies = self.filter_movies(similar_params)
+                if not alt_movies.empty:
+                    alternatives.append(f"I found {similar} movies that might interest you")
+                    break
+        
+        # Generate response with alternatives
+        if alternatives:
+            alt_params = params.copy()
+            # Remove one constraint to find alternatives
+            if 'age_group' in alt_params and 'genre' in alt_params:
+                del alt_params['age_group']  # Keep genre, remove age restriction
+            
+            alt_movies = self.filter_movies(alt_params)
+            if not alt_movies.empty:
+                # Create alternative response with smart explanation
+                movie_list = []
+                for _, movie in alt_movies.iterrows():
+                    movie_info = {
+                        'name': movie['name'],
+                        'genre': movie['genre'],
+                        'released': int(movie['released']) if pd.notna(movie['released']) else 'Unknown',
+                        'rating': movie['rating'] if pd.notna(movie['rating']) else 'N/A',
+                        'age_group': movie['age_group'] if pd.notna(movie['age_group']) else 'N/A',
+                        'runtime': int(movie['runtime']) if pd.notna(movie['runtime']) else 'N/A',
+                        'country': movie['country'] if pd.notna(movie['country']) else 'N/A',
+                        'description': movie['description'] if pd.notna(movie['description']) else 'No description available'
+                    }
+                    movie_list.append(movie_info)
+                
+                # Use Gemini to create smart alternative response
+                if self.model:
+                    try:
+                        alt_prompt = f"""The user asked: "{original_query}"
+
+I couldn't find exact matches, but I found related movies. Create a helpful response that:
+1. Acknowledges their specific request
+2. Explains that I found similar/alternative options
+3. Lists the movies with details
+4. Suggests why these alternatives might interest them
+
+Movies found: {json.dumps(movie_list, ensure_ascii=False)}
+
+Be positive and helpful, don't say "no matches" or "sorry"."""
+                        
+                        response = self.model.generate_content(alt_prompt)
+                        return response.text
+                    except:
+                        pass
+        
+        # If still no alternatives, suggest popular movies
+        popular_movies = self.movies.head(5)
+        return self.generate_fallback_response(popular_movies, params)
     
     def generate_fallback_response(self, filtered_movies, params):
         """Generate a basic response without AI."""
