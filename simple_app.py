@@ -128,12 +128,32 @@ Return JSON format only."""
             country_mask = filtered['country'].str.contains(params['country'], case=False, na=False)
             filtered = filtered[country_mask]
         
-        # Popular filtering (sort by popularity)
-        if params.get('popular'):
-            if params['popular'] == 'high':
+        # Smart sorting logic
+        if not filtered.empty:
+            # If specifically asking for popular movies, sort by popularity
+            if params.get('popular') == 'high':
                 filtered = filtered.sort_values('popular', ascending=False)
+            # Otherwise, sort by a combination of popularity and release year (newer + popular first)
+            else:
+                # Create a smart score: 40% popularity + 60% recency (normalized)
+                if 'popular' in filtered.columns and 'released' in filtered.columns:
+                    # Normalize released year (2000-2024 → 0-1)
+                    max_year = filtered['released'].max()
+                    min_year = max(filtered['released'].min(), 2000)  # Don't go too far back
+                    
+                    if max_year > min_year:
+                        filtered['recency_score'] = (filtered['released'] - min_year) / (max_year - min_year)
+                    else:
+                        filtered['recency_score'] = 1
+                    
+                    # Normalize popularity (1-5 → 0-1)
+                    filtered['pop_score'] = (filtered['popular'] - 1) / 4
+                    
+                    # Combined smart score
+                    filtered['smart_score'] = (filtered['pop_score'] * 0.4) + (filtered['recency_score'] * 0.6)
+                    filtered = filtered.sort_values('smart_score', ascending=False)
         
-        return filtered.head(10)  # Limit to top 10 recommendations
+        return filtered.head(6)  # Limit to top 6 for cleaner responses
     
     def generate_response(self, filtered_movies, params, original_query):
         """Generate a natural language response using Gemini."""
