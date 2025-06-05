@@ -5,6 +5,7 @@ import os
 import google.generativeai as genai
 import re
 import uuid
+from datetime import datetime
 from watchlist_db import WatchlistDB
 
 app = Flask(__name__, static_folder='.', template_folder='.')
@@ -12,6 +13,9 @@ app.secret_key = 'movie_watchlist_secret_key_2024'
 
 # Initialize watchlist database
 watchlist_db = WatchlistDB()
+
+# Global conversation memory for session continuity
+conversation_memory = {}
 
 class MovieRecommender:
     def __init__(self, csv_file_path):
@@ -519,6 +523,33 @@ def get_user_id():
         watchlist_db.add_user(session['user_id'], username)
     return session['user_id']
 
+def save_conversation(user_id, user_query, response):
+    """Save conversation to memory"""
+    if user_id not in conversation_memory:
+        conversation_memory[user_id] = []
+    
+    conversation_memory[user_id].append({
+        'timestamp': datetime.now().isoformat(),
+        'user_query': user_query,
+        'response': response
+    })
+    
+    # Keep only last 10 conversations to avoid memory overflow
+    if len(conversation_memory[user_id]) > 10:
+        conversation_memory[user_id] = conversation_memory[user_id][-10:]
+
+def get_conversation_context(user_id):
+    """Get recent conversation context for user"""
+    if user_id not in conversation_memory:
+        return ""
+    
+    context = "Previous conversation:\n"
+    for conv in conversation_memory[user_id][-3:]:  # Last 3 conversations
+        context += f"User: {conv['user_query']}\n"
+        context += f"Assistant: {conv['response'][:150]}...\n\n"
+    
+    return context
+
 @app.route('/recommend', methods=['POST'])
 def recommend():
     try:
@@ -574,8 +605,20 @@ def recommend():
             else:
                 return jsonify({'recommendation': 'Please specify which movie to add. Example: "add Inception to watchlist"'})
         
+        # Get conversation context for continuity
+        context = get_conversation_context(user_id)
+        
+        # Include context in query if available
+        enhanced_query = query
+        if context:
+            enhanced_query = f"{context}\nCurrent question: {query}"
+        
         # Regular movie recommendation
-        recommendation = recommender.get_recommendation(query)
+        recommendation = recommender.get_recommendation(enhanced_query)
+        
+        # Save conversation to memory
+        save_conversation(user_id, query, recommendation)
+        
         return jsonify({'recommendation': recommendation})
         
     except Exception as e:
