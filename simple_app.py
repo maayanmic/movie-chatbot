@@ -6,13 +6,8 @@ import google.generativeai as genai
 import re
 import uuid
 from datetime import datetime
-from watchlist_db import WatchlistDB
-
 app = Flask(__name__, static_folder='.', template_folder='.')
-app.secret_key = 'movie_watchlist_secret_key_2024'
-
-# Initialize watchlist database
-watchlist_db = WatchlistDB()
+app.secret_key = 'movie_recommender_secret_key_2024'
 
 # Global conversation memory for session continuity
 conversation_memory = {}
@@ -790,9 +785,6 @@ def get_user_id():
     """Get or create user session ID"""
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
-        # Create a simple username for the user
-        username = f"user_{session['user_id'][:8]}"
-        watchlist_db.add_user(session['user_id'], username)
     return session['user_id']
 
 def save_conversation(user_id, user_query, response):
