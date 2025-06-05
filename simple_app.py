@@ -226,10 +226,12 @@ Return JSON format only."""
                 (filtered['released'] <= max_year)
             ]
         
-        # Country filtering
-        if params.get('country'):
+        # Country filtering (skip if Unknown)
+        if params.get('country') and params['country'] != 'Unknown':
+            print(f"DEBUG: Filtering by country: {params['country']}")
             country_mask = filtered['country'].str.contains(params['country'], case=False, na=False)
             filtered = filtered[country_mask]
+            print(f"DEBUG: After country filtering: {len(filtered)} movies")
         
         # Actor filtering - search in cast column
         if params.get('actor'):
