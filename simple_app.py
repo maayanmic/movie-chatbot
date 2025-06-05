@@ -394,51 +394,44 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
     
     def generate_alternative_suggestions(self, params, original_query):
         """Generate alternative suggestions when no exact matches are found."""
-        # Try to find alternatives by relaxing constraints
-        alternatives = []
+        # Prepare the "Sorry, but I can suggest..." message
+        sorry_message = "אין לי סרטים מתאימים לבקשה שלך, אבל אני יכול להציע לך את הסרטים הבאים:"
         
-        # If looking for specific age group + genre, try just the genre
-        if params.get('age_group') and params.get('genre'):
-            genre_only = {'genre': params['genre']}
-            alt_movies = self.filter_movies(genre_only)
-            if not alt_movies.empty:
-                alternatives.append(f"I found {params['genre']} movies for other age groups")
+        # Try to find reasonable alternatives
+        alt_movies = None
+        alt_params = params.copy()
         
-        # If looking for specific genre + age, try just the age group
-        elif params.get('genre') and params.get('age_group'):
-            age_only = {'age_group': params['age_group']}
-            alt_movies = self.filter_movies(age_only)
-            if not alt_movies.empty:
-                alternatives.append(f"I found movies suitable for {params['age_group']} in other genres")
-        
-        # If looking for specific genre, suggest similar genres
-        elif params.get('genre'):
-            genre = params['genre'].lower()
-            similar_genres = {
-                'horror': ['thriller', 'drama'],
-                'comedy': ['family', 'romance'],
-                'action': ['adventure', 'thriller'],
-                'drama': ['thriller', 'romance'],
-                'family': ['comedy', 'animation']
-            }
-            
-            for similar in similar_genres.get(genre, []):
-                similar_params = params.copy()
-                similar_params['genre'] = similar
-                alt_movies = self.filter_movies(similar_params)
-                if not alt_movies.empty:
-                    alternatives.append(f"I found {similar} movies that might interest you")
-                    break
-        
-        # Generate response with alternatives
-        if alternatives:
-            alt_params = params.copy()
-            # Remove one constraint to find alternatives
-            if 'age_group' in alt_params and 'genre' in alt_params:
-                del alt_params['age_group']  # Keep genre, remove age restriction
-            
+        # Strategy 1: If looking for specific director + age group, try just the age group
+        if params.get('director') and params.get('age_group'):
+            print(f"DEBUG: No movies found for director '{params['director']}' and age '{params['age_group']}'")
+            # Try just the age group
+            alt_params = {'age_group': params['age_group']}
             alt_movies = self.filter_movies(alt_params)
             if not alt_movies.empty:
+                print(f"DEBUG: Found {len(alt_movies)} movies for age group only")
+        
+        # Strategy 2: If looking for specific actor + age group, try just the age group  
+        elif params.get('actor') and params.get('age_group'):
+            alt_params = {'age_group': params['age_group']}
+            alt_movies = self.filter_movies(alt_params)
+        
+        # Strategy 3: If looking for genre + age group, try just the age group
+        elif params.get('genre') and params.get('age_group'):
+            alt_params = {'age_group': params['age_group']}
+            alt_movies = self.filter_movies(alt_params)
+        
+        # Strategy 4: If looking for specific year + age group, try just the age group
+        elif params.get('year_range') and params.get('age_group'):
+            alt_params = {'age_group': params['age_group']}
+            alt_movies = self.filter_movies(alt_params)
+        
+        # Strategy 5: If no age group specified, try popular movies
+        else:
+            alt_params = {'popular': 'high'}
+            alt_movies = self.filter_movies(alt_params)
+        
+        # Generate response with alternatives
+        if alt_movies is not None and not alt_movies.empty:
                 # Create alternative response with smart explanation
                 movie_list = []
                 for _, movie in alt_movies.iterrows():
@@ -459,11 +452,13 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
                     try:
                         alt_prompt = f"""The user asked: "{original_query}"
 
-I don't have exact matches for this request, but I found related alternatives. Create a short, clear response that:
-1. First says clearly "I don't have [specific request], but here are some alternatives:"
-2. Lists 3-4 movies maximum in this simple format:
-   - Movie Name (Year) - Brief reason why it's relevant
-3. Keep it short and conversational
+I don't have exact matches for this request, but I found related alternatives. Create a response that:
+1. First says clearly "אין לי סרטים מתאימים לבקשה שלך, אבל אני יכול להציע לך את הסרטים הבאים:"
+2. Then list 3-4 movies maximum in this simple format:
+   • Movie Name (Year) - Genre
+   • Movie Name (Year) - Genre
+3. Use Hebrew for the intro message but English for movie details
+4. Keep it short and helpful
 
 Movies available: {json.dumps(movie_list[:4], ensure_ascii=False)}
 
@@ -473,6 +468,18 @@ Keep the response under 150 words."""
                         return response.text
                     except:
                         pass
+                
+                # Fallback if Gemini fails
+                response = sorry_message + "\n\n"
+                count = 0
+                for _, movie in alt_movies.iterrows():
+                    if count >= 4:
+                        break
+                    year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+                    genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+                    response += f"• {movie['name']} ({year}) - {genre}\n"
+                    count += 1
+                return response
         
         # If still no alternatives, suggest popular movies
         popular_movies = self.movies.head(5)
