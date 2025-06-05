@@ -425,18 +425,28 @@ Return JSON format only."""
             }
             movie_list.append(movie_info)
         
+        movie_details = []
+        for movie in movie_list:
+            details = f"• {movie['name']} ({movie['released']}) - {movie['genre']}"
+            movie_details.append(details)
+        
+        formatted_movies = "\n".join(movie_details)
+        
         system_prompt = f"""You are a helpful movie recommendation assistant. Respond in English.
 
 The user asked: "{original_query}"
 
-ALWAYS format your response as a clean list:
-1. One brief intro sentence
-2. Then list each movie exactly like this:
-   • Movie Name (Year) - Genre
-   • Movie Name (Year) - Genre
-   • Movie Name (Year) - Genre
+Here are the recommended movies with their complete information:
 
-Use bullet points (•) for each movie. Keep it simple - just name, year, and genre. No descriptions or extra text."""
+{formatted_movies}
+
+IMPORTANT: Use the EXACT movie information provided above. Do not say "genre information is unavailable" - all genre information is included.
+
+Format your response as:
+1. One brief intro sentence
+2. Copy the exact movie list from above with bullet points (•)
+
+Do not modify the genre information or add any disclaimers about missing data."""
 
         try:
             if self.model:
@@ -445,7 +455,7 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
                 for i, movie in enumerate(movie_list):
                     print(f"  {i+1}. {movie['name']} - Popularity: {movie['popular']}")
                 
-                prompt = f"{system_prompt}\n\nHere are the movies I found: {json.dumps(movie_list, ensure_ascii=False)}"
+                prompt = system_prompt
                 response = self.model.generate_content(prompt)
                 
                 # Debug: Show the actual Gemini response
