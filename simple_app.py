@@ -255,10 +255,27 @@ Return JSON format only."""
         if params.get('director'):
             director_name = params['director']
             print(f"DEBUG: Searching for director: '{director_name}'")
+            print(f"DEBUG: DataFrame shape before director search: {filtered.shape}")
+            print(f"DEBUG: Sample directors in filtered data:")
+            sample_directors = filtered['director'].dropna().head(5).tolist()
+            print(f"DEBUG: {sample_directors}")
             
             # Try exact match first
-            director_mask = filtered['director'].str.contains(director_name, case=False, na=False)
-            director_results = filtered[director_mask]
+            try:
+                director_mask = filtered['director'].str.contains(director_name, case=False, na=False)
+                director_results = filtered[director_mask]
+                print(f"DEBUG: Exact search found {len(director_results)} movies")
+                
+                # If still no results, try a simple test
+                if director_results.empty:
+                    print(f"DEBUG: Testing if 'Onir' exists in any director name...")
+                    test_mask = filtered['director'].str.contains('Onir', case=False, na=False)
+                    test_results = filtered[test_mask]
+                    print(f"DEBUG: Test search for 'Onir' found {len(test_results)} movies")
+                    
+            except Exception as e:
+                print(f"DEBUG: Error in exact search: {e}")
+                director_results = filtered.iloc[0:0]  # Empty DataFrame
             
             # If no results, try searching for individual parts of the name
             if director_results.empty and ' ' in director_name:
