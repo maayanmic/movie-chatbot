@@ -28,12 +28,33 @@ class MovieRecommender:
     def load_movies(self, csv_file_path):
         """Load and validate movie data from CSV."""
         try:
-            df = pd.read_csv(csv_file_path)
+            # Try different encodings to handle special characters
+            encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+            df = None
+            
+            for encoding in encodings:
+                try:
+                    df = pd.read_csv(csv_file_path, encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if df is None:
+                raise Exception("Could not read CSV file with any encoding")
+            
             # Clean and validate data
             df = df.dropna(subset=['name'])
             df['released'] = pd.to_numeric(df['released'], errors='coerce')
             df['runtime'] = pd.to_numeric(df['runtime'], errors='coerce')
+            df['popular'] = pd.to_numeric(df['popular'], errors='coerce')
+            df['popular'] = df['popular'].fillna(1)
             
+            # Ensure all text columns are strings
+            df['name'] = df['name'].astype(str)
+            df['genre'] = df['genre'].astype(str).fillna('')
+            df['age_group'] = df['age_group'].astype(str).fillna('')
+            
+            print(f"Successfully loaded {len(df)} movies")
             return df
             
         except FileNotFoundError:
@@ -321,7 +342,7 @@ Keep the response under 150 words."""
             return f"I encountered an error while processing your request: {str(e)}. Please try again with a different query."
 
 # Initialize the recommender
-recommender = MovieRecommender("movies_updated.csv")
+recommender = MovieRecommender("movies_clean_utf8.csv")
 
 @app.route('/')
 def index():
