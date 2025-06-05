@@ -607,10 +607,55 @@ Keep the response under 150 words."""
                 query_lower = user_query.lower()
                 movie_matches = []
                 
-                for _, movie in relevant_movies.iterrows():
-                    movie_name = str(movie['name']).lower()
-                    if movie_name in query_lower or any(word in movie_name for word in query_lower.split() if len(word) > 3):
-                        movie_matches.append(movie)
+                # Extract potential movie names from query (look for quoted text or capitalized words)
+                import re
+                potential_names = []
+                
+                # Look for quoted movie names
+                quoted_matches = re.findall(r'"([^"]*)"', user_query)
+                potential_names.extend(quoted_matches)
+                
+                # Look for capitalized words that might be movie titles
+                words = user_query.split()
+                for i, word in enumerate(words):
+                    if word[0].isupper() and len(word) > 2:
+                        # Try single word
+                        potential_names.append(word)
+                        # Try combinations with next words if they're also capitalized
+                        if i < len(words) - 1 and words[i+1][0].isupper():
+                            potential_names.append(f"{word} {words[i+1]}")
+                            if i < len(words) - 2 and words[i+2][0].isupper():
+                                potential_names.append(f"{word} {words[i+1]} {words[i+2]}")
+                
+                # Add debug logging for movie search
+                print(f"DEBUG: Searching for movies in query: {user_query}")
+                print(f"DEBUG: Potential movie names found: {potential_names}")
+                
+                # Search for these potential movie names
+                for potential_name in potential_names:
+                    potential_lower = potential_name.lower()
+                    print(f"DEBUG: Looking for '{potential_name}' in movie database")
+                    for _, movie in relevant_movies.iterrows():
+                        movie_name = str(movie['name']).lower()
+                        if potential_lower in movie_name or movie_name in potential_lower:
+                            movie_matches.append(movie)
+                            print(f"DEBUG: Found match: {movie['name']}")
+                            break
+                
+                # If no matches found with capitalized words, try a broader search
+                if not movie_matches:
+                    print("DEBUG: No matches found with capitalized words, trying broader search")
+                    query_words = [word.lower() for word in user_query.split() if len(word) > 2]
+                    for _, movie in relevant_movies.iterrows():
+                        movie_name = str(movie['name']).lower()
+                        # Check if any significant words from query appear in movie name
+                        for word in query_words:
+                            if word in movie_name and word not in ['movie', 'film', 'also', 'year']:
+                                movie_matches.append(movie)
+                                print(f"DEBUG: Broader search found: {movie['name']}")
+                                break
+                        if movie_matches:  # Stop after first match in broader search
+                            break
                 
                 # Prepare context for Gemini
                 context = f"User question: {user_query}\n\n"
