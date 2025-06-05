@@ -133,13 +133,36 @@ Return JSON format only."""
         """Filter movies based on extracted parameters."""
         filtered = self.movies.copy()
         
-        # Age group filtering
+        # Age group filtering - handle both exact and partial matches
         if params.get('age_group'):
-            filtered = filtered[filtered['age_group'] == params['age_group']]
+            age_group = params['age_group']
+            # Try exact match first
+            exact_match = filtered[filtered['age_group'].str.lower() == age_group.lower()]
+            if not exact_match.empty:
+                filtered = exact_match
+            else:
+                # Fallback to partial match
+                age_mask = filtered['age_group'].str.contains(age_group, case=False, na=False)
+                filtered = filtered[age_mask]
         
-        # Genre filtering
+        # Genre filtering with better mapping
         if params.get('genre'):
-            genre_mask = filtered['genre'].str.contains(params['genre'], case=False, na=False)
+            genre = params['genre'].lower()
+            # Map common genre requests to actual genre names in data
+            genre_mappings = {
+                'comedy': 'Comedies',
+                'horror': 'Horror Movies', 
+                'action': 'Action & Adventure',
+                'drama': 'Dramas',
+                'romance': 'Romantic Movies',
+                'sci-fi': 'Sci-Fi & Fantasy',
+                'thriller': 'Thrillers',
+                'documentary': 'Documentaries',
+                'kids': 'Children & Family Movies'
+            }
+            
+            search_genre = genre_mappings.get(genre, params['genre'])
+            genre_mask = filtered['genre'].str.contains(search_genre, case=False, na=False)
             filtered = filtered[genre_mask]
         
         # Year range filtering
@@ -155,32 +178,39 @@ Return JSON format only."""
             country_mask = filtered['country'].str.contains(params['country'], case=False, na=False)
             filtered = filtered[country_mask]
         
-        # Smart sorting logic
-        if not filtered.empty:
-            # If specifically asking for popular movies, sort by popularity
-            if params.get('popular') == 'high':
-                filtered = filtered.sort_values('popular', ascending=False)
-            # Otherwise, sort by a combination of popularity and release year (newer + popular first)
-            else:
-                # Create a smart score: 40% popularity + 60% recency (normalized)
-                if 'popular' in filtered.columns and 'released' in filtered.columns:
-                    # Normalize released year (2000-2024 → 0-1)
-                    max_year = filtered['released'].max()
-                    min_year = max(filtered['released'].min(), 2000)  # Don't go too far back
-                    
-                    if max_year > min_year:
-                        filtered['recency_score'] = (filtered['released'] - min_year) / (max_year - min_year)
-                    else:
-                        filtered['recency_score'] = 1
-                    
-                    # Normalize popularity (1-5 → 0-1)
-                    filtered['pop_score'] = (filtered['popular'] - 1) / 4
-                    
-                    # Combined smart score
-                    filtered['smart_score'] = (filtered['pop_score'] * 0.4) + (filtered['recency_score'] * 0.6)
-                    filtered = filtered.sort_values('smart_score', ascending=False)
+        # Ensure we have results before sorting
+        if filtered.empty:
+            return filtered
+            
+        # Add randomization to avoid always showing the same movies
+        import random
+        random.seed()  # Use current time as seed for true randomization
+        filtered = filtered.sample(frac=1).reset_index(drop=True)
         
-        return filtered.head(6)  # Limit to top 6 for cleaner responses
+        # Smart sorting logic
+        if params.get('popular') == 'high':
+            # Sort by popularity only for explicit popular requests
+            filtered = filtered.sort_values('popular', ascending=False)
+        else:
+            # Sort by a combination of popularity and recency with some randomness
+            if 'popular' in filtered.columns and 'released' in filtered.columns:
+                # Normalize released year (focus on 2000+ movies)
+                max_year = filtered['released'].max()
+                min_year = max(filtered['released'].min(), 2000)
+                
+                if max_year > min_year:
+                    filtered['recency_score'] = (filtered['released'] - min_year) / (max_year - min_year)
+                else:
+                    filtered['recency_score'] = 1
+                
+                # Normalize popularity (1-5 → 0-1)
+                filtered['pop_score'] = (filtered['popular'] - 1) / 4
+                
+                # Combined smart score with more weight on popularity
+                filtered['smart_score'] = (filtered['pop_score'] * 0.7) + (filtered['recency_score'] * 0.3)
+                filtered = filtered.sort_values('smart_score', ascending=False)
+        
+        return filtered.head(6)
     
     def generate_response(self, filtered_movies, params, original_query):
         """Generate a natural language response using Gemini."""
