@@ -181,10 +181,13 @@ Return JSON format only."""
     def filter_movies(self, params):
         """Filter movies based on extracted parameters."""
         filtered = self.movies.copy()
+        print(f"DEBUG: Starting with {len(filtered)} movies")
+        print(f"DEBUG: Parameters: {params}")
         
-        # Age group filtering - handle both exact and partial matches
-        if params.get('age_group'):
+        # Age group filtering - handle both exact and partial matches (skip if Unknown)
+        if params.get('age_group') and params['age_group'] != 'Unknown':
             age_group = params['age_group']
+            print(f"DEBUG: Filtering by age group: {age_group}")
             # Try exact match first
             exact_match = filtered[filtered['age_group'].str.lower() == age_group.lower()]
             if not exact_match.empty:
@@ -193,9 +196,10 @@ Return JSON format only."""
                 # Fallback to partial match
                 age_mask = filtered['age_group'].str.contains(age_group, case=False, na=False)
                 filtered = filtered[age_mask]
+            print(f"DEBUG: After age filtering: {len(filtered)} movies")
         
-        # Genre filtering with better mapping
-        if params.get('genre'):
+        # Genre filtering with better mapping (skip if Unknown)
+        if params.get('genre') and params['genre'] != 'Unknown':
             genre = params['genre'].lower()
             # Map common genre requests to actual genre names in data
             genre_mappings = {
