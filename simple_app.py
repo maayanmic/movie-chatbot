@@ -761,9 +761,16 @@ def recommend():
         if not query:
             return jsonify({'error': 'No query provided'}), 400
         
+        user_id = get_user_id()
+        
+        # Handle reset conversation request
+        if query == '__RESET_CONVERSATION__':
+            if user_id in conversation_memory:
+                conversation_memory[user_id] = []
+            return jsonify({'recommendation': 'Conversation reset successfully'})
+        
         # Check for watchlist-related queries
         query_lower = query.lower()
-        user_id = get_user_id()
         
         if 'my watchlist' in query_lower or 'show watchlist' in query_lower:
             watchlist = watchlist_db.get_watchlist(user_id)
