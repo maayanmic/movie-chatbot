@@ -40,12 +40,14 @@ class MovieRecommender:
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
 Extract the following information from the user's query and return as JSON:
-- age_group: target age group if mentioned (Kids, Teens, Young Adults, Adults)
+- age_group: target age group if mentioned (Kids, Teens, Young Adults, Adults, Unknown)
 - genre: specific genre if mentioned (e.g., Horror, Action, Drama, Comedy)
-- rating: content rating if mentioned (G, PG, PG-13, R, TV-MA, etc.)
 - year_range: [min_year, max_year] if mentioned
 - country: specific country if mentioned
+- popular: if asking for popular/top movies (high, medium, low)
 - intent: the main intent (recommend, check_suitability, filter, general)
+
+Note: Age groups are: Kids (up to 7), Teens (8-13), Young Adults (14-17), Adults (18+)
 
 Return JSON format only."""
 
@@ -74,9 +76,9 @@ Return JSON format only."""
         params = {
             'age_group': None,
             'genre': None,
-            'rating': None,
             'year_range': None,
             'country': None,
+            'popular': None,
             'intent': 'recommend'
         }
         
@@ -113,10 +115,6 @@ Return JSON format only."""
             genre_mask = filtered['genre'].str.contains(params['genre'], case=False, na=False)
             filtered = filtered[genre_mask]
         
-        # Rating filtering
-        if params.get('rating'):
-            filtered = filtered[filtered['rating'] == params['rating']]
-        
         # Year range filtering
         if params.get('year_range'):
             min_year, max_year = params['year_range']
@@ -129,6 +127,11 @@ Return JSON format only."""
         if params.get('country'):
             country_mask = filtered['country'].str.contains(params['country'], case=False, na=False)
             filtered = filtered[country_mask]
+        
+        # Popular filtering (sort by popularity)
+        if params.get('popular'):
+            if params['popular'] == 'high':
+                filtered = filtered.sort_values('popular', ascending=False)
         
         return filtered.head(10)  # Limit to top 10 recommendations
     
@@ -144,7 +147,7 @@ Return JSON format only."""
                 'name': movie['name'],
                 'genre': movie['genre'],
                 'released': int(movie['released']) if pd.notna(movie['released']) else 'Unknown',
-                'rating': movie['rating'] if pd.notna(movie['rating']) else 'N/A',
+                'popular': int(movie['popular']) if pd.notna(movie['popular']) else 0,
                 'age_group': movie['age_group'] if pd.notna(movie['age_group']) else 'N/A',
                 'runtime': int(movie['runtime']) if pd.notna(movie['runtime']) else 'N/A',
                 'country': movie['country'] if pd.notna(movie['country']) else 'N/A',
@@ -290,7 +293,7 @@ Keep the response under 150 words."""
             return f"I encountered an error while processing your request: {str(e)}. Please try again with a different query."
 
 # Initialize the recommender
-recommender = MovieRecommender("movies_clean.csv")
+recommender = MovieRecommender("movies_updated.csv")
 
 @app.route('/')
 def index():
