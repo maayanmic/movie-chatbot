@@ -92,7 +92,9 @@ Return JSON format only."""
                 elif response_text.startswith('```'):
                     response_text = response_text[3:-3].strip()
                 
-                return json.loads(response_text)
+                params = json.loads(response_text)
+                print(f"DEBUG: Extracted parameters: {params}")
+                return params
             else:
                 return self.basic_parameter_extraction(user_query)
             
@@ -182,8 +184,10 @@ Return JSON format only."""
         
         # Actor filtering - search in cast column
         if params.get('actor'):
+            print(f"Searching for actor: {params['actor']}")
             actor_mask = filtered['cast'].str.contains(params['actor'], case=False, na=False)
             filtered = filtered[actor_mask]
+            print(f"Found {len(filtered)} movies with actor {params['actor']}")
         
         # Director filtering
         if params.get('director'):
