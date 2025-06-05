@@ -110,6 +110,8 @@ Return JSON format only."""
             'year_range': None,
             'country': None,
             'popular': None,
+            'actor': None,
+            'director': None,
             'intent': 'recommend'
         }
         
@@ -130,6 +132,27 @@ Return JSON format only."""
             if genre in query_lower:
                 params['genre'] = genre.title()
                 break
+        
+        # Enhanced actor detection - look for capitalized names
+        import re
+        # Look for patterns like "Artiwara Kongmalai" (capitalized words)
+        name_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b'
+        potential_names = re.findall(name_pattern, query)
+        
+        # Also check for specific actor-related keywords
+        actor_indicators = ['actor', 'actress', 'starring', 'cast', 'with', 'movies by', 'films with']
+        for indicator in actor_indicators:
+            if indicator in query_lower:
+                # Extract text after the indicator
+                idx = query_lower.find(indicator)
+                after_indicator = query[idx + len(indicator):].strip()
+                # Look for capitalized names in the text after indicator
+                names_after = re.findall(name_pattern, after_indicator)
+                potential_names.extend(names_after)
+        
+        # If we found potential actor names, use the first one
+        if potential_names:
+            params['actor'] = potential_names[0]
         
         return params
     
@@ -184,10 +207,27 @@ Return JSON format only."""
         
         # Actor filtering - search in cast column
         if params.get('actor'):
-            print(f"Searching for actor: {params['actor']}")
-            actor_mask = filtered['cast'].str.contains(params['actor'], case=False, na=False)
-            filtered = filtered[actor_mask]
-            print(f"Found {len(filtered)} movies with actor {params['actor']}")
+            actor_name = params['actor']
+            print(f"DEBUG: Searching for actor: '{actor_name}'")
+            
+            # Try multiple search strategies
+            actor_mask = filtered['cast'].str.contains(actor_name, case=False, na=False)
+            actor_results = filtered[actor_mask]
+            
+            # If no results, try searching for individual parts of the name
+            if actor_results.empty and ' ' in actor_name:
+                name_parts = actor_name.split()
+                for part in name_parts:
+                    if len(part) > 2:  # Only search meaningful name parts
+                        part_mask = filtered['cast'].str.contains(part, case=False, na=False)
+                        part_results = filtered[part_mask]
+                        if not part_results.empty:
+                            actor_results = part_results
+                            print(f"DEBUG: Found movies using name part '{part}'")
+                            break
+            
+            filtered = actor_results
+            print(f"DEBUG: Found {len(filtered)} movies with actor search")
         
         # Director filtering
         if params.get('director'):
