@@ -231,7 +231,7 @@ Focus on being helpful and direct."""
                         'name': movie['name'],
                         'genre': movie['genre'],
                         'released': int(movie['released']) if pd.notna(movie['released']) else 'Unknown',
-                        'rating': movie['rating'] if pd.notna(movie['rating']) else 'N/A',
+                        'popular': int(movie['popular']) if pd.notna(movie['popular']) else 0,
                         'age_group': movie['age_group'] if pd.notna(movie['age_group']) else 'N/A',
                         'runtime': int(movie['runtime']) if pd.notna(movie['runtime']) else 'N/A',
                         'country': movie['country'] if pd.notna(movie['country']) else 'N/A',
