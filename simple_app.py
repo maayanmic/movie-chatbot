@@ -251,12 +251,12 @@ Return JSON format only."""
             filtered = actor_results
             print(f"DEBUG: Found {len(filtered)} movies with actor search")
         
-        # Director filtering
+        # Director filtering with improved search
         if params.get('director'):
             director_name = params['director']
             print(f"DEBUG: Searching for director: '{director_name}'")
             
-            # Try multiple search strategies like we do for actors
+            # Try exact match first
             director_mask = filtered['director'].str.contains(director_name, case=False, na=False)
             director_results = filtered[director_mask]
             
@@ -265,12 +265,24 @@ Return JSON format only."""
                 name_parts = director_name.split()
                 for part in name_parts:
                     if len(part) > 2:  # Only search meaningful name parts
+                        print(f"DEBUG: Trying director name part: '{part}'")
                         part_mask = filtered['director'].str.contains(part, case=False, na=False)
                         part_results = filtered[part_mask]
                         if not part_results.empty:
                             director_results = part_results
                             print(f"DEBUG: Found movies using director name part '{part}'")
                             break
+            
+            # Additional fuzzy search - try removing common prefixes
+            if director_results.empty:
+                # Try searching for the last word (often the main name)
+                words = director_name.split()
+                if len(words) > 1:
+                    last_word = words[-1]
+                    if len(last_word) > 2:
+                        print(f"DEBUG: Trying last word search: '{last_word}'")
+                        last_word_mask = filtered['director'].str.contains(last_word, case=False, na=False)
+                        director_results = filtered[last_word_mask]
             
             filtered = director_results
             print(f"DEBUG: Found {len(filtered)} movies with director search")
