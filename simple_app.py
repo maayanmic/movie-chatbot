@@ -671,9 +671,8 @@ def recommend():
         # Regular movie recommendation
         recommendation = recommender.get_recommendation(enhanced_query)
         
-        # Save conversation to memory (skip for precise filtering to avoid cached responses)
-        if not is_precise_filter:
-            save_conversation(user_id, query, recommendation)
+        # Save conversation to memory
+        save_conversation(user_id, query, recommendation)
         
         return jsonify({'recommendation': recommendation})
         
