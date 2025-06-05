@@ -20,8 +20,13 @@ class MovieRecommender:
         # Configure Gemini AI
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            try:
+                genai.configure(api_key=api_key)
+                # Use the correct model name for Gemini 1.5
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
+            except Exception as e:
+                print(f"Warning: Could not initialize Gemini model: {e}")
+                self.model = None
         else:
             self.model = None
         
@@ -136,15 +141,22 @@ Return JSON format only."""
                 params['genre'] = genre.title()
                 break
         
-        # Enhanced actor detection - look for capitalized names
+        # Enhanced actor/director detection - look for capitalized names
         import re
-        # Look for patterns like "Artiwara Kongmalai" (capitalized words)
-        name_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b'
+        # Look for patterns like "Artiwara Kongmalai" (capitalized words) or single names like "Onir"
+        name_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b'
         potential_names = re.findall(name_pattern, query)
         
-        # Also check for specific actor-related keywords
+        # Check for director-specific keywords first
+        director_indicators = ['director', 'directed', 'filme by', 'made by']
+        is_director_query = any(indicator in query_lower for indicator in director_indicators)
+        
+        # Also check for actor-related keywords
         actor_indicators = ['actor', 'actress', 'starring', 'cast', 'with', 'movies by', 'films with']
-        for indicator in actor_indicators:
+        
+        # Extract names after specific keywords
+        all_indicators = director_indicators + actor_indicators
+        for indicator in all_indicators:
             if indicator in query_lower:
                 # Extract text after the indicator
                 idx = query_lower.find(indicator)
@@ -153,16 +165,16 @@ Return JSON format only."""
                 names_after = re.findall(name_pattern, after_indicator)
                 potential_names.extend(names_after)
         
-        # If we found potential actor names, use the first one
-        if potential_names:
-            # Check if this might be a director query instead
-            director_indicators = ['director', 'directed', 'filme by', 'made by']
-            is_director_query = any(indicator in query_lower for indicator in director_indicators)
-            
+        # Filter out common words that aren't names
+        common_words = ['The', 'And', 'Of', 'In', 'On', 'At', 'To', 'For', 'With', 'By', 'From', 'Movie', 'Film', 'Movies', 'Films']
+        filtered_names = [name for name in potential_names if name not in common_words]
+        
+        # If we found potential names, use the most relevant one
+        if filtered_names:
             if is_director_query:
-                params['director'] = potential_names[0]
+                params['director'] = filtered_names[0]
             else:
-                params['actor'] = potential_names[0]
+                params['actor'] = filtered_names[0]
         
         return params
     
