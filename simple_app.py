@@ -569,7 +569,7 @@ Keep the response under 150 words."""
             return f"I encountered an error while processing your request: {str(e)}. Please try again with a different query."
 
 # Initialize the recommender
-recommender = MovieRecommender("attached_assets/MergeAndCleaned_Movies_1749140192662.csv")
+recommender = MovieRecommender("attached_assets/MergeAndCleaned_Movies.csv")
 
 @app.route('/')
 def index():
