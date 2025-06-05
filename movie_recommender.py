@@ -1,14 +1,20 @@
 import pandas as pd
 import json
 import os
-from openai import OpenAI
+import google.generativeai as genai
 import re
 
 class MovieRecommender:
     def __init__(self, csv_file_path):
-        """Initialize the movie recommender with CSV data and OpenAI client."""
+        """Initialize the movie recommender with CSV data and Gemini client."""
         self.movies = self.load_movies(csv_file_path)
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Configure Gemini AI
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-pro')
+        else:
+            self.model = None
         
     def load_movies(self, csv_file_path):
         """Load and validate movie data from CSV."""
@@ -35,10 +41,8 @@ class MovieRecommender:
             raise Exception(f"Error loading CSV: {str(e)}")
     
     def extract_query_parameters(self, user_query):
-        """Use OpenAI to extract parameters from natural language query."""
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
-        system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries in Hebrew and English.
+        """Use Gemini to extract parameters from natural language query."""
+        system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
 Extract the following information from the user's query and return as JSON:
 - age: target age (number) if mentioned
@@ -46,36 +50,38 @@ Extract the following information from the user's query and return as JSON:
 - max_age: maximum age restriction if asking about age-appropriate content
 - year_range: [min_year, max_year] if mentioned
 - rating_min: minimum rating if mentioned
-- language: detected language of the query (hebrew/english)
 - intent: the main intent (recommend, check_suitability, filter, general)
 
 Return JSON format only."""
 
         try:
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ],
-                response_format={"type": "json_object"}
-            )
-            
-            return json.loads(response.choices[0].message.content)
+            if self.model:
+                prompt = f"{system_prompt}\n\nUser query: {user_query}"
+                response = self.model.generate_content(prompt)
+                
+                # Extract JSON from response
+                response_text = response.text.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3].strip()
+                
+                return json.loads(response_text)
+            else:
+                return self.basic_parameter_extraction(user_query)
             
         except Exception as e:
             # Fallback to basic parameter extraction
             return self.basic_parameter_extraction(user_query)
     
     def basic_parameter_extraction(self, query):
-        """Basic fallback parameter extraction without OpenAI."""
+        """Basic fallback parameter extraction without AI."""
         params = {
             'age': None,
             'genre': None,
             'max_age': None,
             'year_range': None,
             'rating_min': None,
-            'language': 'hebrew' if any(ord(char) > 127 for char in query) else 'english',
             'intent': 'recommend'
         }
         
@@ -87,8 +93,7 @@ Return JSON format only."""
             params['max_age'] = ages[0]
         
         # Basic genre detection
-        genres = ['comedy', 'action', 'drama', 'horror', 'romance', 'animation', 'documentary']
-        hebrew_genres = ['קומדיה', 'פעולה', 'דרמה', 'אימה', 'רומנטיקה', 'אנימציה']
+        genres = ['comedy', 'action', 'drama', 'horror', 'romance', 'animation', 'documentary', 'family', 'adventure', 'sci-fi', 'fantasy', 'musical']
         
         query_lower = query.lower()
         for genre in genres:
@@ -126,7 +131,7 @@ Return JSON format only."""
         return filtered.head(10)  # Limit to top 10 recommendations
     
     def generate_response(self, filtered_movies, params, original_query):
-        """Generate a natural language response using OpenAI."""
+        """Generate a natural language response using Gemini."""
         if filtered_movies.empty:
             return self.generate_no_results_response(params)
         
@@ -142,9 +147,7 @@ Return JSON format only."""
             }
             movie_list.append(movie_info)
         
-        language = params.get('language', 'english')
-        
-        system_prompt = f"""You are a helpful movie recommendation assistant. Respond in {"Hebrew" if language == 'hebrew' else "English"}.
+        system_prompt = f"""You are a helpful movie recommendation assistant. Respond in English.
 
 The user asked: "{original_query}"
 
@@ -157,48 +160,28 @@ Provide a natural, conversational response that:
 Format the response naturally, not as a list or formal structure."""
 
         try:
-            # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-            # do not change this unless explicitly requested by the user
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Here are the movies I found: {json.dumps(movie_list, ensure_ascii=False)}"}
-                ]
-            )
-            
-            return response.choices[0].message.content
+            if self.model:
+                prompt = f"{system_prompt}\n\nHere are the movies I found: {json.dumps(movie_list, ensure_ascii=False)}"
+                response = self.model.generate_content(prompt)
+                return response.text
+            else:
+                return self.generate_fallback_response(filtered_movies, params)
             
         except Exception as e:
             return self.generate_fallback_response(filtered_movies, params)
     
     def generate_no_results_response(self, params):
         """Generate response when no movies match the criteria."""
-        language = params.get('language', 'english')
-        
-        if language == 'hebrew':
-            return "מצטער, לא מצאתי סרטים שמתאימים לקריטריונים שלך. נסה לשנות את הדרישות או לשאול על ז'אנר אחר."
-        else:
-            return "I'm sorry, I couldn't find any movies matching your criteria. Try adjusting your requirements or asking about a different genre."
+        return "I'm sorry, I couldn't find any movies matching your criteria. Try adjusting your requirements or asking about a different genre."
     
     def generate_fallback_response(self, filtered_movies, params):
-        """Generate a basic response without OpenAI."""
-        language = params.get('language', 'english')
-        
-        if language == 'hebrew':
-            response = "הנה כמה המלצות עבורך:\n\n"
-            for _, movie in filtered_movies.iterrows():
-                response += f"🎬 **{movie['title']}** ({movie['year']})\n"
-                response += f"   ז'אנר: {movie['genre']}\n"
-                response += f"   דירוג: {movie['rating']}/10\n"
-                response += f"   מתאים מגיל: {movie['min_age']}\n\n"
-        else:
-            response = "Here are some recommendations for you:\n\n"
-            for _, movie in filtered_movies.iterrows():
-                response += f"🎬 **{movie['title']}** ({movie['year']})\n"
-                response += f"   Genre: {movie['genre']}\n"
-                response += f"   Rating: {movie['rating']}/10\n"
-                response += f"   Suitable from age: {movie['min_age']}\n\n"
+        """Generate a basic response without AI."""
+        response = "Here are some recommendations for you:\n\n"
+        for _, movie in filtered_movies.iterrows():
+            response += f"🎬 **{movie['title']}** ({movie['year']})\n"
+            response += f"   Genre: {movie['genre']}\n"
+            response += f"   Rating: {movie['rating']}/10\n"
+            response += f"   Suitable from age: {movie['min_age']}\n\n"
         
         return response
     
