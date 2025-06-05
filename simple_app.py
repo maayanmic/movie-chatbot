@@ -395,7 +395,7 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
     def generate_alternative_suggestions(self, params, original_query):
         """Generate alternative suggestions when no exact matches are found."""
         # Prepare the "Sorry, but I can suggest..." message
-        sorry_message = "אין לי סרטים מתאימים לבקשה שלך, אבל אני יכול להציע לך את הסרטים הבאים:"
+        sorry_message = "I don't have movies that exactly match your request, but here are some alternatives:"
         
         # Try to find reasonable alternatives
         alt_movies = None
@@ -453,12 +453,12 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
                         alt_prompt = f"""The user asked: "{original_query}"
 
 I don't have exact matches for this request, but I found related alternatives. Create a response that:
-1. First says clearly "אין לי סרטים מתאימים לבקשה שלך, אבל אני יכול להציע לך את הסרטים הבאים:"
+1. First says clearly "I don't have movies that exactly match your request, but here are some alternatives:"
 2. Then list 3-4 movies maximum in this simple format:
    • Movie Name (Year) - Genre
    • Movie Name (Year) - Genre
-3. Use Hebrew for the intro message but English for movie details
-4. Keep it short and helpful
+3. Keep it short and helpful in English
+4. Focus on why these alternatives are relevant
 
 Movies available: {json.dumps(movie_list[:4], ensure_ascii=False)}
 
@@ -487,7 +487,7 @@ Keep the response under 150 words."""
             fallback_params = {'age_group': params['age_group']}
             fallback_movies = self.filter_movies(fallback_params)
             if not fallback_movies.empty:
-                response = "אין לי סרטים מתאימים לבקשה שלך, אבל אני יכול להציע לך את הסרטים הבאים:\n\n"
+                response = "I don't have movies that exactly match your request, but here are some alternatives:\n\n"
                 count = 0
                 for _, movie in fallback_movies.iterrows():
                     if count >= 4:
