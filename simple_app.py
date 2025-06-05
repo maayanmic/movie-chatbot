@@ -481,7 +481,24 @@ Keep the response under 150 words."""
                     count += 1
                 return response
         
-        # If still no alternatives, suggest popular movies
+        # If still no alternatives, suggest appropriate fallback
+        if params.get('age_group'):
+            # Try to get movies for the requested age group
+            fallback_params = {'age_group': params['age_group']}
+            fallback_movies = self.filter_movies(fallback_params)
+            if not fallback_movies.empty:
+                response = "אין לי סרטים מתאימים לבקשה שלך, אבל אני יכול להציע לך את הסרטים הבאים:\n\n"
+                count = 0
+                for _, movie in fallback_movies.iterrows():
+                    if count >= 4:
+                        break
+                    year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+                    genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+                    response += f"• {movie['name']} ({year}) - {genre}\n"
+                    count += 1
+                return response
+        
+        # Final fallback - popular movies
         popular_movies = self.movies.head(5)
         return self.generate_fallback_response(popular_movies, params)
     
