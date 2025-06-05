@@ -92,7 +92,7 @@ Extract the following information from the user's query and return as JSON:
 - director: director name if mentioned
 - runtime: if duration is mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90)
 - runtime_operator: "greater_than", "less_than", "equal_to" or "between" for runtime comparisons
-- intent: the main intent (recommend, check_suitability, filter, general)
+- intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
 
 IMPORTANT: Always convert time references to minutes:
 - "two hours" = 120 minutes
@@ -101,6 +101,12 @@ IMPORTANT: Always convert time references to minutes:
 - "90 minutes" = 90 minutes
 
 Note: Age groups are: Kids (up to 7), Teens (8-13), Young Adults (14-17), Adults (18+)
+
+Intent guidelines:
+- recommend: User wants movie recommendations or lists
+- check_suitability: User asks if specific movies match criteria
+- general_movie_question: User asks general questions about movies, actors, directors (like "Is X also a drama movie?", "Who directed Y?", "What year was Z released?")
+- off_topic: User asks about non-movie topics (politics, weather, cooking, etc.)
 
 Return JSON format only."""
 
@@ -590,12 +596,63 @@ Keep the response under 150 words."""
         
         return response
     
+    def handle_general_movie_question(self, user_query, params):
+        """Handle general questions about movies in the dataset."""
+        try:
+            if self.model:
+                # Search for relevant movies based on any mentioned names
+                relevant_movies = self.movies.copy()
+                
+                # Try to find specific movies mentioned in the query
+                query_lower = user_query.lower()
+                movie_matches = []
+                
+                for _, movie in relevant_movies.iterrows():
+                    movie_name = str(movie['name']).lower()
+                    if movie_name in query_lower or any(word in movie_name for word in query_lower.split() if len(word) > 3):
+                        movie_matches.append(movie)
+                
+                # Prepare context for Gemini
+                context = f"User question: {user_query}\n\n"
+                if movie_matches:
+                    context += "Relevant movies from dataset:\n"
+                    for movie in movie_matches[:3]:  # Limit to 3 most relevant
+                        context += f"- {movie['name']} ({movie['released']}) - Genre: {movie['genre']}, Rating: {movie['popular']}\n"
+                else:
+                    context += "Dataset contains 5,371 movies with information about genres, release years, popularity ratings, cast, directors, and more.\n"
+                
+                prompt = f"""You are a movie expert assistant. Answer the user's question based on the movie dataset information provided. 
+                
+Respond in English only. Be helpful and informative, using only the data provided.
+
+{context}
+
+Answer the user's question directly and concisely."""
+                
+                response = self.model.generate_content(prompt)
+                return response.text
+            else:
+                return "I can help with movie-related questions, but I need more specific information to provide accurate answers."
+                
+        except Exception as e:
+            return "I encountered an issue processing your question. Please try rephrasing it."
+
     def get_recommendation(self, user_query):
         """Main method to get movie recommendations based on user query."""
         try:
             # Extract parameters from user query
             params = self.extract_query_parameters(user_query)
             
+            # Check intent and handle accordingly
+            intent = params.get('intent', 'recommend')
+            
+            if intent == 'off_topic':
+                return "I'm sorry, but I specialize only in the world of movies. Please ask me about films, actors, directors, or movie recommendations."
+            
+            elif intent == 'general_movie_question':
+                return self.handle_general_movie_question(user_query, params)
+            
+            # For recommend, check_suitability, and filter intents
             # Filter movies based on parameters
             filtered_movies = self.filter_movies(params)
             
