@@ -90,7 +90,15 @@ Extract the following information from the user's query and return as JSON:
 - popular: if asking for popular/top movies (high, medium, low) OR specific number (1, 2, 3, 4, 5)
 - actor: actor/actress name if mentioned
 - director: director name if mentioned
+- runtime: if duration is mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90)
+- runtime_operator: "greater_than", "less_than", "equal_to" or "between" for runtime comparisons
 - intent: the main intent (recommend, check_suitability, filter, general)
+
+IMPORTANT: Always convert time references to minutes:
+- "two hours" = 120 minutes
+- "one hour" = 60 minutes  
+- "hour and half" = 90 minutes
+- "90 minutes" = 90 minutes
 
 Note: Age groups are: Kids (up to 7), Teens (8-13), Young Adults (14-17), Adults (18+)
 
@@ -321,6 +329,27 @@ Return JSON format only."""
             filtered = director_results
             print(f"DEBUG: Found {len(filtered)} movies with director search")
         
+        # Runtime filtering (in minutes)
+        if params.get('runtime') and params.get('runtime_operator'):
+            runtime_value = params['runtime']
+            operator = params['runtime_operator']
+            print(f"DEBUG: Filtering by runtime {operator} {runtime_value} minutes")
+            
+            if operator == 'greater_than':
+                runtime_mask = filtered['runtime'] > runtime_value
+            elif operator == 'less_than':
+                runtime_mask = filtered['runtime'] < runtime_value
+            elif operator == 'equal_to':
+                runtime_mask = filtered['runtime'] == runtime_value
+            elif operator == 'between' and isinstance(runtime_value, list):
+                min_runtime, max_runtime = runtime_value
+                runtime_mask = (filtered['runtime'] >= min_runtime) & (filtered['runtime'] <= max_runtime)
+            else:
+                runtime_mask = filtered['runtime'] > runtime_value  # Default to greater than
+            
+            filtered = filtered[runtime_mask]
+            print(f"DEBUG: After runtime filtering: {len(filtered)} movies")
+
         # Ensure we have results before sorting
         if filtered.empty:
             return filtered
