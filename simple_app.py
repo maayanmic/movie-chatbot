@@ -361,7 +361,13 @@ Return JSON format only."""
                 filtered['smart_score'] = (filtered['pop_score'] * 0.7) + (filtered['recency_score'] * 0.3)
                 filtered = filtered.sort_values('smart_score', ascending=False)
         
-        return filtered.head(6)
+        # Final debugging before returning results
+        final_results = filtered.head(6)
+        print(f"DEBUG: Final results summary:")
+        for i, (_, movie) in enumerate(final_results.iterrows()):
+            print(f"  {i+1}. {movie['name']} - Popularity: {movie['popular']}")
+        
+        return final_results
     
     def generate_response(self, filtered_movies, params, original_query):
         """Generate a natural language response using Gemini."""
