@@ -84,6 +84,28 @@
             border: 1px solid #e1e8ed;
         }
 
+        .movie-list {
+            margin: 10px 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .movie-item {
+            margin: 8px 0;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            font-weight: 500;
+            color: #2c3e50;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .movie-title {
+            font-weight: 600;
+            color: #007bff;
+        }
+
         .chat-input-container {
             padding: 20px;
             background: white;
@@ -215,7 +237,41 @@
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.innerHTML = content;
+            
+            // Format bot messages with bullet points as lists
+            if (!isUser && content.includes('•')) {
+                const lines = content.split('\n');
+                let formattedHTML = '';
+                let inList = false;
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line.includes('•')) {
+                        if (!inList) {
+                            formattedHTML += '<ul class="movie-list">';
+                            inList = true;
+                        }
+                        const movieText = line.replace('•', '').trim();
+                        formattedHTML += `<li class="movie-item">${movieText}</li>`;
+                    } else {
+                        if (inList) {
+                            formattedHTML += '</ul>';
+                            inList = false;
+                        }
+                        if (line.length > 0) {
+                            formattedHTML += `<div>${line}</div>`;
+                        }
+                    }
+                }
+                
+                if (inList) {
+                    formattedHTML += '</ul>';
+                }
+                
+                contentDiv.innerHTML = formattedHTML;
+            } else {
+                contentDiv.textContent = content;
+            }
             
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);
