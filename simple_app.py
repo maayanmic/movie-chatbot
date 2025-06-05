@@ -404,6 +404,11 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
 
         try:
             if self.model:
+                # Debug: Show exactly what data is being sent to Gemini
+                print(f"DEBUG: Movies being sent to Gemini for response generation:")
+                for i, movie in enumerate(movie_list):
+                    print(f"  {i+1}. {movie['name']} - Popularity: {movie['popular']}")
+                
                 prompt = f"{system_prompt}\n\nHere are the movies I found: {json.dumps(movie_list, ensure_ascii=False)}"
                 response = self.model.generate_content(prompt)
                 return response.text
@@ -650,12 +655,13 @@ def recommend():
             else:
                 return jsonify({'recommendation': 'Please specify which movie to add. Example: "add Inception to watchlist"'})
         
-        # Get conversation context for continuity
+        # Get conversation context for continuity (but skip for precise filtering)
         context = get_conversation_context(user_id)
         
-        # Include context in query if available
+        # Include context in query if available, but skip for specific filtering queries
         enhanced_query = query
-        if context:
+        is_precise_filter = any(word in query.lower() for word in ['popular rate', 'popularity rating', 'rating of', 'rate is'])
+        if context and not is_precise_filter:
             enhanced_query = f"{context}\nCurrent question: {query}"
         
         # Regular movie recommendation
