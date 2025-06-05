@@ -82,17 +82,19 @@ class MovieRecommender:
         """Use Gemini to extract parameters from natural language query."""
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
+IMPORTANT: Only extract parameters that are EXPLICITLY mentioned in the query. Do not infer or assume parameters.
+
 Extract the following information from the user's query and return as JSON:
-- age_group: target age group if mentioned (Kids, Teens, Young Adults, Adults, Unknown)
-- genre: specific genre if mentioned (e.g., Horror, Action, Drama, Comedy)
-- year_range: [min_year, max_year] if mentioned
-- country: specific country if mentioned
-- popular: if asking for popular/top movies (high, medium, low) OR specific number (1, 2, 3, 4, 5)
-- actor: actor/actress name if mentioned
-- director: director name if mentioned
-- runtime: if duration is mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90)
-- runtime_operator: "greater_than", "less_than", "equal_to" or "between" for runtime comparisons
-- description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"])
+- age_group: target age group ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
+- genre: specific genre ONLY if explicitly mentioned (e.g., Horror, Action, Drama, Comedy) - if not mentioned, use null
+- year_range: [min_year, max_year] ONLY if years are explicitly mentioned - if not mentioned, use null
+- country: specific country ONLY if explicitly mentioned - if not mentioned, use null
+- popular: ONLY if user explicitly asks for popular/top movies (high, medium, low) OR specific rating (1, 2, 3, 4, 5) - if not mentioned, use null
+- actor: actor/actress name ONLY if explicitly mentioned - if not mentioned, use null
+- director: director name ONLY if explicitly mentioned - if not mentioned, use null
+- runtime: ONLY if duration is explicitly mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90) - if not mentioned, use null
+- runtime_operator: ONLY if runtime comparison is mentioned: "greater_than", "less_than", "equal_to" or "between" - if not mentioned, use null
+- description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"]) - if no plot description, use null
 - intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
 
 IMPORTANT: Always convert time references to minutes:
