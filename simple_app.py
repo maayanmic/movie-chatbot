@@ -231,8 +231,8 @@ Return JSON format only."""
         print(f"DEBUG: Starting with {len(filtered)} movies")
         print(f"DEBUG: Parameters: {params}")
         
-        # Age group filtering - handle both exact and partial matches (skip if Unknown)
-        if params.get('age_group') and params['age_group'] != 'Unknown':
+        # Age group filtering - skip if we have description keywords (prioritize content over demographics)
+        if params.get('age_group') and params['age_group'] != 'Unknown' and not params.get('description_keywords'):
             age_group = params['age_group']
             print(f"DEBUG: Filtering by age group: {age_group}")
             # Try exact match first
@@ -244,6 +244,8 @@ Return JSON format only."""
                 age_mask = filtered['age_group'].str.contains(age_group, case=False, na=False)
                 filtered = filtered[age_mask]
             print(f"DEBUG: After age filtering: {len(filtered)} movies")
+        elif params.get('description_keywords'):
+            print(f"DEBUG: Skipping age filter due to description search priority")
         
         # Genre filtering with better mapping (skip if Unknown)
         if params.get('genre') and params['genre'] != 'Unknown':
