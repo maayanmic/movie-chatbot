@@ -411,6 +411,10 @@ Use bullet points (•) for each movie. Keep it simple - just name, year, and ge
                 
                 prompt = f"{system_prompt}\n\nHere are the movies I found: {json.dumps(movie_list, ensure_ascii=False)}"
                 response = self.model.generate_content(prompt)
+                
+                # Debug: Show the actual Gemini response
+                print(f"DEBUG: Gemini's actual response: {response.text}")
+                
                 return response.text
             else:
                 return self.generate_fallback_response(filtered_movies, params)
