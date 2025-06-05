@@ -185,14 +185,14 @@ Return JSON format only."""
 
 The user asked: "{original_query}"
 
-Provide a clean, organized response:
-1. Brief intro line
-2. List movies in this exact format:
+ALWAYS format your response as a clean list:
+1. One brief intro sentence
+2. Then list each movie exactly like this:
    • Movie Name (Year) - Genre
    • Movie Name (Year) - Genre
    • Movie Name (Year) - Genre
 
-Keep it simple and clean. No extra details, just the essential info."""
+Use bullet points (•) for each movie. Keep it simple - just name, year, and genre. No descriptions or extra text."""
 
         try:
             if self.model:
@@ -296,7 +296,7 @@ Keep the response under 150 words."""
         response = "Here are some recommendations:\n\n"
         count = 0
         for _, movie in filtered_movies.iterrows():
-            if count >= 4:  # Limit to 4 movies
+            if count >= 6:  # Limit to 6 movies
                 break
             response += f"• {movie['name']} ({movie['released']}) - {movie['genre']}\n"
             count += 1
