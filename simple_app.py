@@ -418,10 +418,14 @@ Return JSON format only."""
         if filtered.empty:
             return filtered
             
-        # Add randomization to avoid always showing the same movies
-        import random
-        random.seed()  # Use current time as seed for true randomization
-        filtered = filtered.sample(frac=1).reset_index(drop=True)
+        # Different handling for specific vs general searches
+        is_specific_search = bool(params.get('description_keywords'))
+        
+        # Only randomize for general searches, not specific ones
+        if not is_specific_search:
+            import random
+            random.seed()  # Use current time as seed for true randomization
+            filtered = filtered.sample(frac=1).reset_index(drop=True)
         
         # Popularity filtering - handle specific numbers and ranges
         if params.get('popular'):
@@ -441,14 +445,17 @@ Return JSON format only."""
                 # Filter for low popularity (1-2)
                 filtered = filtered[filtered['popular'] <= 2]
         
-        # Smart sorting logic for non-popularity filtered results
+        # Smart sorting logic based on search type
         if not params.get('popular') or params.get('popular') not in ['high', 'medium', 'low']:
-            # If we have keyword scores, prioritize relevance over popularity
-            if 'keyword_score' in filtered.columns and params.get('description_keywords'):
-                # Sort by keyword relevance first, then popularity
-                filtered = filtered.sort_values(['keyword_score', 'popular', 'released'], ascending=[False, False, False])
-                print(f"DEBUG: Sorted by keyword relevance - top movie: {filtered.iloc[0]['name'] if not filtered.empty else 'None'}")
-            # Sort by a combination of popularity and recency with some randomness
+            if is_specific_search:
+                # For specific searches: prioritize relevance (keyword matches) over everything else
+                if 'keyword_score' in filtered.columns:
+                    filtered = filtered.sort_values(['keyword_score', 'popular', 'released'], ascending=[False, False, False])
+                    print(f"DEBUG: SPECIFIC SEARCH - Sorted by relevance. Top movie: {filtered.iloc[0]['name'] if not filtered.empty else 'None'} (score: {filtered.iloc[0]['keyword_score'] if not filtered.empty else 0})")
+                else:
+                    # Even without keyword scores, don't randomize specific searches
+                    filtered = filtered.sort_values(['popular', 'released'], ascending=[False, False])
+            # For general searches: Sort by a combination of popularity and recency with randomness
             elif 'popular' in filtered.columns and 'released' in filtered.columns:
                 # Normalize released year (focus on 2000+ movies)
                 max_year = filtered['released'].max()
