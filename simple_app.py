@@ -100,7 +100,10 @@ Return JSON format only."""
             
         except Exception as e:
             # Fallback to basic parameter extraction
-            return self.basic_parameter_extraction(user_query)
+            print(f"DEBUG: Gemini failed, using basic extraction: {str(e)}")
+            params = self.basic_parameter_extraction(user_query)
+            print(f"DEBUG: Basic extraction result: {params}")
+            return params
     
     def basic_parameter_extraction(self, query):
         """Basic fallback parameter extraction without AI."""
