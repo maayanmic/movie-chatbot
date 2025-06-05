@@ -80,7 +80,7 @@ Extract the following information from the user's query and return as JSON:
 - genre: specific genre if mentioned (e.g., Horror, Action, Drama, Comedy)
 - year_range: [min_year, max_year] if mentioned
 - country: specific country if mentioned
-- popular: if asking for popular/top movies (high, medium, low)
+- popular: if asking for popular/top movies (high, medium, low) OR specific number (1, 2, 3, 4, 5)
 - actor: actor/actress name if mentioned
 - director: director name if mentioned
 - intent: the main intent (recommend, check_suitability, filter, general)
@@ -323,11 +323,26 @@ Return JSON format only."""
         random.seed()  # Use current time as seed for true randomization
         filtered = filtered.sample(frac=1).reset_index(drop=True)
         
-        # Smart sorting logic
-        if params.get('popular') == 'high':
-            # Sort by popularity only for explicit popular requests
-            filtered = filtered.sort_values('popular', ascending=False)
-        else:
+        # Popularity filtering - handle specific numbers and ranges
+        if params.get('popular'):
+            popular_param = params['popular']
+            if isinstance(popular_param, (int, float)):
+                # Filter by exact popularity rating
+                filtered = filtered[filtered['popular'] == popular_param]
+                print(f"DEBUG: Filtered by popularity = {popular_param}, found {len(filtered)} movies")
+            elif popular_param == 'high':
+                # Filter for high popularity (4-5)
+                filtered = filtered[filtered['popular'] >= 4]
+                filtered = filtered.sort_values('popular', ascending=False)
+            elif popular_param == 'medium':
+                # Filter for medium popularity (2-3)
+                filtered = filtered[filtered['popular'].between(2, 3)]
+            elif popular_param == 'low':
+                # Filter for low popularity (1-2)
+                filtered = filtered[filtered['popular'] <= 2]
+        
+        # Smart sorting logic for non-popularity filtered results
+        if not params.get('popular') or params.get('popular') not in ['high', 'medium', 'low']:
             # Sort by a combination of popularity and recency with some randomness
             if 'popular' in filtered.columns and 'released' in filtered.columns:
                 # Normalize released year (focus on 2000+ movies)
