@@ -1,11 +1,17 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session
 import pandas as pd
 import json
 import os
 import google.generativeai as genai
 import re
+import uuid
+from watchlist_db import WatchlistDB
 
 app = Flask(__name__, static_folder='.', template_folder='.')
+app.secret_key = 'movie_watchlist_secret_key_2024'
+
+# Initialize watchlist database
+watchlist_db = WatchlistDB()
 
 class MovieRecommender:
     def __init__(self, csv_file_path):
@@ -179,12 +185,14 @@ Return JSON format only."""
 
 The user asked: "{original_query}"
 
-Provide a short, clear response (under 200 words) that:
-1. Briefly acknowledges their request
-2. Lists 3-4 movies maximum in this format: Movie Name (Year) - Brief description
-3. Keep it conversational but concise
+Provide a clean, organized response:
+1. Brief intro line
+2. List movies in this exact format:
+   • Movie Name (Year) - Genre
+   • Movie Name (Year) - Genre
+   • Movie Name (Year) - Genre
 
-Focus on being helpful and direct."""
+Keep it simple and clean. No extra details, just the essential info."""
 
         try:
             if self.model:
@@ -319,6 +327,15 @@ recommender = MovieRecommender("movies_updated.csv")
 def index():
     return render_template('index.html')
 
+def get_user_id():
+    """Get or create user session ID"""
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+        # Create a simple username for the user
+        username = f"user_{session['user_id'][:8]}"
+        watchlist_db.add_user(session['user_id'], username)
+    return session['user_id']
+
 @app.route('/recommend', methods=['POST'])
 def recommend():
     try:
@@ -328,9 +345,136 @@ def recommend():
         if not query:
             return jsonify({'error': 'No query provided'}), 400
         
+        # Check for watchlist-related queries
+        query_lower = query.lower()
+        user_id = get_user_id()
+        
+        if 'my watchlist' in query_lower or 'show watchlist' in query_lower:
+            watchlist = watchlist_db.get_watchlist(user_id)
+            if not watchlist:
+                return jsonify({'recommendation': 'Your watchlist is empty. Start adding movies by saying "add [movie name] to watchlist"!'})
+            
+            response = "📋 Your Watchlist:\n\n"
+            for movie in watchlist:
+                status_emoji = {"want_to_watch": "⏳", "watched": "✅", "watching": "🎬"}.get(movie['status'], "⏳")
+                response += f"{status_emoji} {movie['title']} ({movie['year'] or 'Unknown'}) - {movie['genre'] or 'Unknown genre'}\n"
+            
+            return jsonify({'recommendation': response})
+        
+        elif 'add to watchlist' in query_lower or 'save to watchlist' in query_lower:
+            # Extract movie name from query
+            import re
+            match = re.search(r'add\s+"?([^"]+?)"?\s+to\s+watchlist', query_lower)
+            if not match:
+                match = re.search(r'save\s+"?([^"]+?)"?\s+to\s+watchlist', query_lower)
+            
+            if match:
+                movie_title = match.group(1).strip()
+                # Try to find the movie in our database
+                movie_found = recommender.movies[recommender.movies['name'].str.lower().str.contains(movie_title.lower(), na=False)]
+                
+                if not movie_found.empty:
+                    movie = movie_found.iloc[0]
+                    success = watchlist_db.add_to_watchlist(
+                        user_id, 
+                        movie['name'], 
+                        movie['released'] if pd.notna(movie['released']) else None,
+                        movie['genre'] if pd.notna(movie['genre']) else None
+                    )
+                    
+                    if success:
+                        return jsonify({'recommendation': f'✅ Added "{movie["name"]}" to your watchlist!'})
+                    else:
+                        return jsonify({'recommendation': f'"{movie["name"]}" is already in your watchlist.'})
+                else:
+                    return jsonify({'recommendation': f'Sorry, I couldn\'t find "{movie_title}" in our movie database.'})
+            else:
+                return jsonify({'recommendation': 'Please specify which movie to add. Example: "add Inception to watchlist"'})
+        
+        # Regular movie recommendation
         recommendation = recommender.get_recommendation(query)
         return jsonify({'recommendation': recommendation})
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/watchlist', methods=['GET'])
+def get_watchlist():
+    """Get user's complete watchlist"""
+    try:
+        user_id = get_user_id()
+        watchlist = watchlist_db.get_watchlist(user_id)
+        return jsonify({'watchlist': watchlist})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/watchlist/add', methods=['POST'])
+def add_to_watchlist():
+    """Add movie to watchlist"""
+    try:
+        data = request.get_json()
+        movie_title = data.get('title')
+        movie_year = data.get('year')
+        genre = data.get('genre')
+        
+        if not movie_title:
+            return jsonify({'error': 'Movie title is required'}), 400
+        
+        user_id = get_user_id()
+        success = watchlist_db.add_to_watchlist(user_id, movie_title, movie_year, genre)
+        
+        if success:
+            return jsonify({'message': 'Movie added to watchlist successfully'})
+        else:
+            return jsonify({'error': 'Movie already in watchlist'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/watchlist/update', methods=['POST'])
+def update_watchlist():
+    """Update movie status in watchlist"""
+    try:
+        data = request.get_json()
+        movie_title = data.get('title')
+        movie_year = data.get('year')
+        status = data.get('status')  # want_to_watch, watching, watched
+        rating = data.get('rating')
+        notes = data.get('notes')
+        
+        if not movie_title or not status:
+            return jsonify({'error': 'Movie title and status are required'}), 400
+        
+        user_id = get_user_id()
+        success = watchlist_db.update_movie_status(user_id, movie_title, movie_year, status, rating, notes)
+        
+        if success:
+            return jsonify({'message': 'Movie status updated successfully'})
+        else:
+            return jsonify({'error': 'Movie not found in watchlist'}), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/watchlist/remove', methods=['POST'])
+def remove_from_watchlist():
+    """Remove movie from watchlist"""
+    try:
+        data = request.get_json()
+        movie_title = data.get('title')
+        movie_year = data.get('year')
+        
+        if not movie_title:
+            return jsonify({'error': 'Movie title is required'}), 400
+        
+        user_id = get_user_id()
+        success = watchlist_db.remove_from_watchlist(user_id, movie_title, movie_year)
+        
+        if success:
+            return jsonify({'message': 'Movie removed from watchlist successfully'})
+        else:
+            return jsonify({'error': 'Movie not found in watchlist'}), 404
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

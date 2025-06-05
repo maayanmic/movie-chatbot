@@ -37,6 +37,13 @@
             padding: 20px;
             text-align: center;
             border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content {
+            flex: 1;
         }
 
         .chat-header h1 {
@@ -47,6 +54,21 @@
         .chat-header p {
             font-size: 14px;
             opacity: 0.8;
+        }
+
+        .watchlist-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        .watchlist-btn:hover {
+            background-color: #2980b9;
         }
 
         .chat-messages {
@@ -168,8 +190,11 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h1>🎬 Movie Recommendation Chatbot</h1>
-            <p>Ask me for movie recommendations based on age, genre, rating, and more!</p>
+            <div class="header-content">
+                <h1>🎬 Movie Recommendation Chatbot</h1>
+                <p>Ask me for movie recommendations based on age, genre, rating, and more!</p>
+            </div>
+            <button class="watchlist-btn" onclick="showWatchlist()">📋 My Watchlist</button>
         </div>
         
         <div class="chat-messages" id="chatMessages">
