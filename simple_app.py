@@ -398,6 +398,14 @@ Return JSON format only."""
             if description_mask.any():
                 filtered = filtered[description_mask]
                 print(f"DEBUG: After description filtering: {len(filtered)} movies")
+                
+                # Debug: Check if movie "706" is in the results
+                movie_706 = filtered[filtered['name'] == '706']
+                if not movie_706.empty:
+                    print(f"DEBUG: Found movie '706' with popularity {movie_706.iloc[0]['popular']}")
+                else:
+                    print(f"DEBUG: Movie '706' not found in filtered results")
+                    
             else:
                 print(f"DEBUG: No movies found matching description keywords")
 
