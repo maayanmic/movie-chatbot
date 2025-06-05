@@ -72,6 +72,8 @@ Extract the following information from the user's query and return as JSON:
 - year_range: [min_year, max_year] if mentioned
 - country: specific country if mentioned
 - popular: if asking for popular/top movies (high, medium, low)
+- actor: actor/actress name if mentioned
+- director: director name if mentioned
 - intent: the main intent (recommend, check_suitability, filter, general)
 
 Note: Age groups are: Kids (up to 7), Teens (8-13), Young Adults (14-17), Adults (18+)
@@ -177,6 +179,16 @@ Return JSON format only."""
         if params.get('country'):
             country_mask = filtered['country'].str.contains(params['country'], case=False, na=False)
             filtered = filtered[country_mask]
+        
+        # Actor filtering - search in cast column
+        if params.get('actor'):
+            actor_mask = filtered['cast'].str.contains(params['actor'], case=False, na=False)
+            filtered = filtered[actor_mask]
+        
+        # Director filtering
+        if params.get('director'):
+            director_mask = filtered['director'].str.contains(params['director'], case=False, na=False)
+            filtered = filtered[director_mask]
         
         # Ensure we have results before sorting
         if filtered.empty:
