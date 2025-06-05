@@ -156,13 +156,12 @@ Return JSON format only."""
 
 The user asked: "{original_query}"
 
-Provide a natural, conversational response that:
-1. Acknowledges their request
-2. Lists the recommended movies with key details
-3. Explains why these movies are suitable
-4. Uses an engaging, friendly tone
+Provide a short, clear response (under 200 words) that:
+1. Briefly acknowledges their request
+2. Lists 3-4 movies maximum in this format: Movie Name (Year) - Brief description
+3. Keep it conversational but concise
 
-Format the response naturally, not as a list or formal structure."""
+Focus on being helpful and direct."""
 
         try:
             if self.model:
@@ -242,15 +241,15 @@ Format the response naturally, not as a list or formal structure."""
                     try:
                         alt_prompt = f"""The user asked: "{original_query}"
 
-I couldn't find exact matches, but I found related movies. Create a helpful response that:
-1. Acknowledges their specific request
-2. Explains that I found similar/alternative options
-3. Lists the movies with details
-4. Suggests why these alternatives might interest them
+I don't have exact matches for this request, but I found related alternatives. Create a short, clear response that:
+1. First says clearly "I don't have [specific request], but here are some alternatives:"
+2. Lists 3-4 movies maximum in this simple format:
+   - Movie Name (Year) - Brief reason why it's relevant
+3. Keep it short and conversational
 
-Movies found: {json.dumps(movie_list, ensure_ascii=False)}
+Movies available: {json.dumps(movie_list[:4], ensure_ascii=False)}
 
-Be positive and helpful, don't say "no matches" or "sorry"."""
+Keep the response under 150 words."""
                         
                         response = self.model.generate_content(alt_prompt)
                         return response.text
@@ -263,15 +262,13 @@ Be positive and helpful, don't say "no matches" or "sorry"."""
     
     def generate_fallback_response(self, filtered_movies, params):
         """Generate a basic response without AI."""
-        response = "Here are some recommendations for you:\n\n"
+        response = "Here are some recommendations:\n\n"
+        count = 0
         for _, movie in filtered_movies.iterrows():
-            response += f"🎬 **{movie['name']}** ({movie['released']})\n"
-            response += f"   Genre: {movie['genre']}\n"
-            response += f"   Rating: {movie['rating']}\n"
-            response += f"   Age Group: {movie['age_group']}\n"
-            if pd.notna(movie['description']):
-                response += f"   Description: {movie['description'][:100]}...\n"
-            response += "\n"
+            if count >= 4:  # Limit to 4 movies
+                break
+            response += f"• {movie['name']} ({movie['released']}) - {movie['genre']}\n"
+            count += 1
         
         return response
     
