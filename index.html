@@ -151,6 +151,22 @@
             cursor: not-allowed;
         }
 
+        .reset-button {
+            padding: 12px 24px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        .reset-button:hover {
+            background-color: #c82333;
+        }
+
         .loading {
             display: inline-block;
             width: 20px;
@@ -216,6 +232,7 @@
                     autocomplete="off"
                 >
                 <button type="submit" class="send-button" id="sendButton">Send</button>
+                <button type="button" class="reset-button" id="resetButton" onclick="resetChat()">Reset</button>
             </form>
             <div class="example-queries">
                 <span class="example-query" onclick="setQuery('What movies are good for kids?')">What movies are good for kids?</span>
@@ -354,6 +371,25 @@
         });
 
 
+
+        function setQuery(query) {
+            messageInput.value = query;
+            messageInput.focus();
+        }
+
+        function resetChat() {
+            // Clear all messages except the welcome message
+            const messages = chatMessages.querySelectorAll('.message');
+            messages.forEach((message, index) => {
+                if (index > 0) { // Keep the first welcome message
+                    message.remove();
+                }
+            });
+            
+            // Clear input field
+            messageInput.value = '';
+            messageInput.focus();
+        }
 
         // Focus on input when page loads
         messageInput.focus();
