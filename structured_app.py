@@ -69,23 +69,65 @@ class MovieRecommender:
             print(f"Error loading CSV: {str(e)}")
             raise Exception(f"Error loading CSV: {str(e)}")
     
+    def normalize_text(self, text):
+        """Normalize text to handle typos and variations."""
+        import re
+        
+        # Common typo corrections
+        corrections = {
+            'rommantic': 'romantic',
+            'rommntic': 'romantic',
+            'rommance': 'romance',
+            'romence': 'romance',
+            'romanc': 'romance',
+            'mooviy': 'movie',
+            'mooviey': 'movie',
+            'moviy': 'movie',
+            'moovi': 'movie',
+            'actoin': 'action',
+            'akshen': 'action',
+            'comdy': 'comedy',
+            'komedia': 'comedy',
+            'drame': 'drama',
+            'horer': 'horror',
+            'horor': 'horror',
+            'thriler': 'thriller',
+            'fantesy': 'fantasy',
+            'documentry': 'documentary',
+            'animtion': 'animation'
+        }
+        
+        # Apply corrections
+        normalized = text.lower()
+        for wrong, correct in corrections.items():
+            normalized = re.sub(rf'\b{wrong}\b', correct, normalized)
+        
+        return normalized
+
     def extract_query_parameters(self, user_query):
         """Use Gemini to extract parameters from natural language query."""
+        # Normalize the query first
+        normalized_query = self.normalize_text(user_query)
+        
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
-IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be flexible with genre recognition.
+IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be extremely flexible with genre recognition and spelling variations.
 
-GENRE VARIATIONS TO RECOGNIZE:
-- Romance: "romance", "romantic", "רומנטי", "רומנטית", "אהבה", "romance mooviy", "romance movie", "romence", "romanc"
-- Action: "action", "אקשן", "פעולה", "actoin", "akshen"
-- Comedy: "comedy", "קומדיה", "comdy", "komedia", "funny"
-- Drama: "drama", "דרמה", "drame"
-- Horror: "horror", "אימה", "scary", "horer", "horor"
-- Thriller: "thriller", "מתח", "suspense", "thriler"
+GENRE VARIATIONS TO RECOGNIZE (including common typos):
+- Romance/Romantic: "romance", "romantic", "rommantic", "rommntic", "rommance", "romence", "romanc", "רומנטי", "רומנטית", "אהבה"
+- Action: "action", "actoin", "akshen", "אקשן", "פעולה"
+- Comedy: "comedy", "comdy", "komedia", "funny", "קומדיה"
+- Drama: "drama", "drame", "דרמה"
+- Horror: "horror", "scary", "horer", "horor", "אימה"
+- Thriller: "thriller", "thriler", "suspense", "מתח"
+- Sci-Fi: "sci-fi", "science fiction", "scifi", "sci fi", "מדע בדיוני"
+- Fantasy: "fantasy", "fantesy", "פנטזיה"
+- Documentary: "documentary", "documentry", "docu", "תיעודי"
+- Animation: "animation", "animated", "animtion", "cartoon", "אנימציה"
 
 Extract the following information from the user's query and return as JSON:
 - age_group: target age group ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
-- genre: specific genre ONLY if explicitly mentioned - be flexible with spelling and Hebrew/English mix - if not mentioned, use null
+- genre: specific genre ONLY if explicitly mentioned - be extremely flexible with spelling variations - if not mentioned, use null
 - year_range: [min_year, max_year] ONLY if years are explicitly mentioned - if not mentioned, use null
 - country: specific country ONLY if explicitly mentioned - if not mentioned, use null
 - popular: ONLY if user explicitly asks for popular/top movies (high, medium, low) OR specific rating (1, 2, 3, 4, 5) - if not mentioned, use null
@@ -132,25 +174,27 @@ Return JSON format only."""
             'intent': 'recommend'
         }
         
-        # Enhanced genre detection with Hebrew, typos, and variations
-        query_lower = query.lower().strip()
+        # Normalize query first to handle typos
+        normalized_query = self.normalize_text(query)
         
+        # Enhanced genre detection with Hebrew, typos, and variations
         genre_mappings = {
-            'romance': ['romance', 'romantic', 'רומנטי', 'רומנטית', 'אהבה', 'romance mooviy', 'romance movie', 'romence', 'romanc', 'romantic movie'],
-            'action': ['action', 'אקשן', 'פעולה', 'actoin', 'akshen', 'action movie'],
-            'comedy': ['comedy', 'קומדיה', 'comdy', 'komedia', 'funny', 'comedy movie'],
-            'drama': ['drama', 'דרמה', 'drame', 'drama movie'],
-            'horror': ['horror', 'אימה', 'scary', 'horer', 'horor', 'horror movie'],
-            'thriller': ['thriller', 'מתח', 'suspense', 'thriler', 'thriller movie'],
+            'romance': ['romance', 'romantic', 'rommantic', 'rommntic', 'rommance', 'romence', 'romanc', 'רומנטי', 'רומנטית', 'אהבה'],
+            'action': ['action', 'אקשן', 'פעולה', 'actoin', 'akshen'],
+            'comedy': ['comedy', 'קומדיה', 'comdy', 'komedia', 'funny'],
+            'drama': ['drama', 'דרמה', 'drame'],
+            'horror': ['horror', 'אימה', 'scary', 'horer', 'horor'],
+            'thriller': ['thriller', 'מתח', 'suspense', 'thriler'],
             'sci-fi': ['sci-fi', 'science fiction', 'מדע בדיוני', 'scifi', 'sci fi', 'science-fiction'],
-            'fantasy': ['fantasy', 'פנטזיה', 'fantesy', 'fantasy movie'],
-            'documentary': ['documentary', 'תיעודי', 'documentry', 'docu', 'documentary movie'],
+            'fantasy': ['fantasy', 'פנטזיה', 'fantesy'],
+            'documentary': ['documentary', 'תיעודי', 'documentry', 'docu'],
             'animation': ['animation', 'animated', 'אנימציה', 'cartoon', 'animtion']
         }
         
+        # Check both original and normalized query
         for genre, variations in genre_mappings.items():
             for variation in variations:
-                if variation in query_lower:
+                if variation in normalized_query or variation in query.lower():
                     params['genre'] = genre.title()
                     break
             if params['genre']:
