@@ -243,6 +243,47 @@ Return JSON format only."""
                 year_mask = (filtered['released'] >= min_year) & (filtered['released'] <= max_year)
                 filtered = filtered[year_mask]
         
+        # Age group filtering
+        if params.get('age_group'):
+            age_mask = filtered['age_group'] == params['age_group']
+            filtered = filtered[age_mask]
+        
+        # Runtime filtering
+        if params.get('runtime') and params.get('runtime_operator'):
+            runtime = params['runtime']
+            operator = params['runtime_operator']
+            
+            if operator == 'less_than':
+                runtime_mask = filtered['runtime'] <= runtime
+            elif operator == 'greater_than':
+                runtime_mask = filtered['runtime'] >= runtime
+            elif operator == 'equal_to':
+                runtime_mask = (filtered['runtime'] >= runtime - 10) & (filtered['runtime'] <= runtime + 10)
+            elif operator == 'between' and isinstance(runtime, list) and len(runtime) == 2:
+                runtime_mask = (filtered['runtime'] >= runtime[0]) & (filtered['runtime'] <= runtime[1])
+            else:
+                runtime_mask = pd.Series([True] * len(filtered))
+            
+            filtered = filtered[runtime_mask]
+        
+        # Actor filtering
+        if params.get('actor'):
+            actor = params['actor']
+            actor_mask = filtered['cast'].str.contains(actor, case=False, na=False)
+            filtered = filtered[actor_mask]
+        
+        # Director filtering
+        if params.get('director'):
+            director = params['director']
+            director_mask = filtered['director'].str.contains(director, case=False, na=False)
+            filtered = filtered[director_mask]
+        
+        # Country filtering
+        if params.get('country'):
+            country = params['country']
+            country_mask = filtered['country'].str.contains(country, case=False, na=False)
+            filtered = filtered[country_mask]
+        
         # Description keyword filtering with relevance scoring
         if params.get('description_keywords'):
             keywords = params['description_keywords']
