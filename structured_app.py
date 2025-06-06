@@ -69,45 +69,32 @@ class MovieRecommender:
             print(f"Error loading CSV: {str(e)}")
             raise Exception(f"Error loading CSV: {str(e)}")
     
-    def normalize_text(self, text):
-        """Normalize text to handle typos and variations."""
-        import re
+    def fuzzy_match(self, word, target_words, threshold=0.7):
+        """Check if word matches any target word with fuzzy matching."""
+        import difflib
         
-        # Common typo corrections
-        corrections = {
-            'rommantic': 'romantic',
-            'rommntic': 'romantic',
-            'rommance': 'romance',
-            'romence': 'romance',
-            'romanc': 'romance',
-            'mooviy': 'movie',
-            'mooviey': 'movie',
-            'moviy': 'movie',
-            'moovi': 'movie',
-            'actoin': 'action',
-            'akshen': 'action',
-            'comdy': 'comedy',
-            'komedia': 'comedy',
-            'drame': 'drama',
-            'horer': 'horror',
-            'horor': 'horror',
-            'thriler': 'thriller',
-            'fantesy': 'fantasy',
-            'documentry': 'documentary',
-            'animtion': 'animation'
-        }
+        word_lower = word.lower().strip()
         
-        # Apply corrections
-        normalized = text.lower()
-        for wrong, correct in corrections.items():
-            normalized = re.sub(rf'\b{wrong}\b', correct, normalized)
+        for target in target_words:
+            target_lower = target.lower()
+            
+            # Exact match
+            if word_lower == target_lower:
+                return True
+            
+            # Check if word contains target or target contains word
+            if word_lower in target_lower or target_lower in word_lower:
+                return True
+            
+            # Fuzzy matching using sequence similarity
+            similarity = difflib.SequenceMatcher(None, word_lower, target_lower).ratio()
+            if similarity >= threshold:
+                return True
         
-        return normalized
+        return False
 
     def extract_query_parameters(self, user_query):
         """Use Gemini to extract parameters from natural language query."""
-        # Normalize the query first
-        normalized_query = self.normalize_text(user_query)
         
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
@@ -174,27 +161,26 @@ Return JSON format only."""
             'intent': 'recommend'
         }
         
-        # Normalize query first to handle typos
-        normalized_query = self.normalize_text(query)
-        
-        # Enhanced genre detection with Hebrew, typos, and variations
-        genre_mappings = {
-            'romance': ['romance', 'romantic', 'rommantic', 'rommntic', 'rommance', 'romence', 'romanc', 'רומנטי', 'רומנטית', 'אהבה'],
-            'action': ['action', 'אקשן', 'פעולה', 'actoin', 'akshen'],
-            'comedy': ['comedy', 'קומדיה', 'comdy', 'komedia', 'funny'],
-            'drama': ['drama', 'דרמה', 'drame'],
-            'horror': ['horror', 'אימה', 'scary', 'horer', 'horor'],
-            'thriller': ['thriller', 'מתח', 'suspense', 'thriler'],
-            'sci-fi': ['sci-fi', 'science fiction', 'מדע בדיוני', 'scifi', 'sci fi', 'science-fiction'],
-            'fantasy': ['fantasy', 'פנטזיה', 'fantesy'],
-            'documentary': ['documentary', 'תיעודי', 'documentry', 'docu'],
-            'animation': ['animation', 'animated', 'אנימציה', 'cartoon', 'animtion']
+        # Genre detection using fuzzy matching
+        genre_keywords = {
+            'romance': ['romance', 'romantic', 'רומנטי', 'רומנטית', 'אהבה'],
+            'action': ['action', 'אקשן', 'פעולה'],
+            'comedy': ['comedy', 'קומדיה', 'funny'],
+            'drama': ['drama', 'דרמה'],
+            'horror': ['horror', 'אימה', 'scary'],
+            'thriller': ['thriller', 'מתח', 'suspense'],
+            'sci-fi': ['sci-fi', 'science fiction', 'מדע בדיוני', 'scifi'],
+            'fantasy': ['fantasy', 'פנטזיה'],
+            'documentary': ['documentary', 'תיעודי', 'docu'],
+            'animation': ['animation', 'animated', 'אנימציה', 'cartoon']
         }
         
-        # Check both original and normalized query
-        for genre, variations in genre_mappings.items():
-            for variation in variations:
-                if variation in normalized_query or variation in query.lower():
+        # Split query into words for fuzzy matching
+        query_words = query.lower().split()
+        
+        for genre, keywords in genre_keywords.items():
+            for word in query_words:
+                if self.fuzzy_match(word, keywords, threshold=0.6):
                     params['genre'] = genre.title()
                     break
             if params['genre']:
@@ -202,6 +188,7 @@ Return JSON format only."""
         
         # Extract keywords for description search
         description_keywords = []
+        query_lower = query.lower()
         story_indicators = ['about', 'movie about', 'film about', 'story of', 'follows', 'centers on']
         
         for indicator in story_indicators:
