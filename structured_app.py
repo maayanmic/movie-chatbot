@@ -73,11 +73,19 @@ class MovieRecommender:
         """Use Gemini to extract parameters from natural language query."""
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
-IMPORTANT: Only extract parameters that are EXPLICITLY mentioned in the query. Do not infer or assume parameters.
+IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be flexible with genre recognition.
+
+GENRE VARIATIONS TO RECOGNIZE:
+- Romance: "romance", "romantic", "רומנטי", "רומנטית", "אהבה", "romance mooviy", "romance movie", "romence", "romanc"
+- Action: "action", "אקשן", "פעולה", "actoin", "akshen"
+- Comedy: "comedy", "קומדיה", "comdy", "komedia", "funny"
+- Drama: "drama", "דרמה", "drame"
+- Horror: "horror", "אימה", "scary", "horer", "horor"
+- Thriller: "thriller", "מתח", "suspense", "thriler"
 
 Extract the following information from the user's query and return as JSON:
 - age_group: target age group ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
-- genre: specific genre ONLY if explicitly mentioned (e.g., Horror, Action, Drama, Comedy) - if not mentioned, use null
+- genre: specific genre ONLY if explicitly mentioned - be flexible with spelling and Hebrew/English mix - if not mentioned, use null
 - year_range: [min_year, max_year] ONLY if years are explicitly mentioned - if not mentioned, use null
 - country: specific country ONLY if explicitly mentioned - if not mentioned, use null
 - popular: ONLY if user explicitly asks for popular/top movies (high, medium, low) OR specific rating (1, 2, 3, 4, 5) - if not mentioned, use null
@@ -124,12 +132,28 @@ Return JSON format only."""
             'intent': 'recommend'
         }
         
-        # Basic genre detection
-        query_lower = query.lower()
-        genres = ['horror', 'action', 'drama', 'comedy', 'romance', 'sci-fi', 'fantasy', 'documentary', 'thriller']
-        for genre in genres:
-            if genre in query_lower:
-                params['genre'] = genre.title()
+        # Enhanced genre detection with Hebrew, typos, and variations
+        query_lower = query.lower().strip()
+        
+        genre_mappings = {
+            'romance': ['romance', 'romantic', 'רומנטי', 'רומנטית', 'אהבה', 'romance mooviy', 'romance movie', 'romence', 'romanc', 'romantic movie'],
+            'action': ['action', 'אקשן', 'פעולה', 'actoin', 'akshen', 'action movie'],
+            'comedy': ['comedy', 'קומדיה', 'comdy', 'komedia', 'funny', 'comedy movie'],
+            'drama': ['drama', 'דרמה', 'drame', 'drama movie'],
+            'horror': ['horror', 'אימה', 'scary', 'horer', 'horor', 'horror movie'],
+            'thriller': ['thriller', 'מתח', 'suspense', 'thriler', 'thriller movie'],
+            'sci-fi': ['sci-fi', 'science fiction', 'מדע בדיוני', 'scifi', 'sci fi', 'science-fiction'],
+            'fantasy': ['fantasy', 'פנטזיה', 'fantesy', 'fantasy movie'],
+            'documentary': ['documentary', 'תיעודי', 'documentry', 'docu', 'documentary movie'],
+            'animation': ['animation', 'animated', 'אנימציה', 'cartoon', 'animtion']
+        }
+        
+        for genre, variations in genre_mappings.items():
+            for variation in variations:
+                if variation in query_lower:
+                    params['genre'] = genre.title()
+                    break
+            if params['genre']:
                 break
         
         # Extract keywords for description search
