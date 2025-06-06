@@ -180,10 +180,28 @@ Return JSON format only."""
         filtered = self.movies.copy()
         is_specific_search = bool(params.get('description_keywords'))
         
-        # Genre filtering
+        # Genre filtering with mapping to actual CSV genres
         if params.get('genre') and params['genre'] != 'Unknown':
             genre = params['genre'].lower()
-            genre_mask = filtered['genre'].str.contains(genre, case=False, na=False)
+            
+            # Map user genres to actual CSV genre formats
+            genre_mapping = {
+                'romance': 'romantic',
+                'romantic': 'romantic', 
+                'action': 'action',
+                'comedy': 'comedies',
+                'drama': 'dramas',
+                'horror': 'horror',
+                'thriller': 'thriller',
+                'sci-fi': 'sci-fi',
+                'fantasy': 'fantasy',
+                'documentary': 'documentaries',
+                'animation': 'children'
+            }
+            
+            # Use mapped genre or original if no mapping exists
+            search_genre = genre_mapping.get(genre, genre)
+            genre_mask = filtered['genre'].str.contains(search_genre, case=False, na=False)
             filtered = filtered[genre_mask]
         
         # Year range filtering
