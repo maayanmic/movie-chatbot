@@ -315,13 +315,15 @@ Return JSON format only."""
                     print(f"DEBUG: Found {len(matches)} movies with '{clean_keyword}'")
                     if clean_keyword == 'missing' and len(matches) > 0:
                         print(f"DEBUG: Movies with 'missing': {matches['name'].head(5).tolist()}")
-                        # Check if 706 is in the dataset
-                        if '706' in filtered['name'].values:
-                            print("DEBUG: Movie 706 exists in dataset")
-                            desc_706 = filtered[filtered['name'] == '706']['description'].iloc[0]
-                            print(f"DEBUG: 706 description: {desc_706[:100]}...")
+                        # Check specifically for the movie with the exact description
+                        exact_match = filtered[filtered['description'].str.contains("When a doctor goes missing, his psychiatrist wife treats", case=False, na=False)]
+                        if not exact_match.empty:
+                            movie_name = exact_match.iloc[0]['name']
+                            print(f"DEBUG: Found exact match movie: '{movie_name}'")
+                            if movie_name not in matches['name'].values:
+                                print(f"DEBUG: But '{movie_name}' was NOT found in 'missing' search!")
                         else:
-                            print("DEBUG: Movie 706 NOT found in dataset")
+                            print("DEBUG: Exact description match not found")
                     filtered.loc[keyword_mask, 'keyword_score'] += 1
 
             keyword_filtered = filtered[filtered['keyword_score'] > 0]
