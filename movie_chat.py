@@ -693,6 +693,9 @@ ANALYSIS examples:
 - "what about the ratings?"
 - "tell me more about..."
 - "which do you recommend?"
+- "which one you recommend?"
+- "what do you recommend?"
+- "recommend one"
 
 SEARCH examples:
 - "show me action movies"
