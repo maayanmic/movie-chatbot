@@ -130,20 +130,14 @@ Respond in JSON format only."""
             'intent': 'recommend'
         }
 
-        # Check if this is a follow-up query based on conversation context
+        # Always try to extract context parameters when context is available
         if conversation_context:
-            if self.is_followup_query(query, conversation_context):
-                context_params = self.extract_context_parameters(conversation_context)
-                # Merge context parameters with current params (context has priority for missing values)
-                for key, value in context_params.items():
-                    if value is not None and params.get(key) is None:
-                        params[key] = value
-                        print(f"DEBUG: Inherited {key} from context: {value}")
-                        
-                # Special handling for inherited parameters in current query
-                if context_params.get('age_group') and not any(indicator in query.lower() for indicator in ['adults', 'teens', 'young adults']):
-                    print(f"DEBUG: Inherited age_group '{context_params['age_group']}' from context (current query had priority)")
-                    params['age_group'] = context_params['age_group']
+            context_params = self.extract_context_parameters(conversation_context)
+            # Merge context parameters with current params (context provides defaults for missing values)
+            for key, value in context_params.items():
+                if value is not None and params.get(key) is None:
+                    params[key] = value
+                    print(f"DEBUG: Inherited {key} from context: {value}")
 
         # Extract parameters from the current query FIRST (higher priority)
         query_lower = query.lower()
