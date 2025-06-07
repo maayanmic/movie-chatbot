@@ -117,35 +117,163 @@ Respond in JSON format only."""
             return self.basic_parameter_extraction(user_query, conversation_context)
 
     def basic_parameter_extraction(self, query, conversation_context=""):
-        """Basic fallback parameter extraction without AI - uses general algorithmic approach."""
+        """Basic fallback parameter extraction without AI."""
         params = {
-            'genre': None, 'year_range': None, 'actor': None, 'director': None,
-            'country': None, 'age_group': None, 'popular': None, 'runtime': None,
-            'runtime_operator': None, 'description_keywords': [], 'intent': 'recommend'
+            'age_group': None,
+            'genre': None,
+            'year_range': None,
+            'country': None,
+            'popular': None,
+            'actor': None,
+            'director': None,
+            'description_keywords': None,
+            'intent': 'recommend'
         }
-        
+
+        # Check if this is a follow-up query based on conversation context
+        if conversation_context:
+            if self.is_followup_query(query, conversation_context):
+                context_params = self.extract_context_parameters(conversation_context)
+                params.update(context_params)
+
+        # Extract additional parameters from the current query itself
         query_lower = query.lower()
-        
-        # Check if query contains genre terms by looking at actual genre values in dataset
-        if hasattr(self, 'movies_df') and not self.movies_df.empty:
-            unique_genres = self.movies_df['genre'].dropna().unique()
-            for genre in unique_genres:
-                # Only match if it's a meaningful genre (not generic words like "Movies")
-                if len(genre) > 4 and genre.lower() in query_lower and genre.lower() not in ['movies', 'films']:
+
+        # Simple age detection for kids content
+        age_indicators = ['year old', 'years old', 'month old', 'months old', 'baby', 'toddler', 'infant']
+        for indicator in age_indicators:
+            if indicator in query_lower:
+                import re
+                age_match = re.search(r'(\d+)\s*(year|month)', query_lower)
+                if age_match:
+                    age_num = int(age_match.group(1))
+                    age_unit = age_match.group(2)
+                    if (age_unit == 'month' and age_num <= 24) or (age_unit == 'year' and age_num <= 12):
+                        params['age_group'] = 'Kids'
+                break
+
+        # Kids/Family detection
+        kids_indicators = [
+            'for kids', 'for children', 'suitable for kids', 'suit to kids',
+            'that will suit', 'appropriate for kids', 'family friendly',
+            'children can watch', 'kids can watch', 'child friendly'
+        ]
+
+        for indicator in kids_indicators:
+            if indicator in query_lower:
+                params['age_group'] = 'Kids'
+                break
+
+        # Genre detection using fuzzy matching
+        genre_keywords = {
+            'romance': ['romance', 'romantic'],
+            'action': ['action'],
+            'comedy': ['comedy', 'comedies', 'funny'],
+            'drama': ['drama'],
+            'horror': ['horror', 'scary'],
+            'thriller': ['thriller', 'suspense'],
+            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
+            'fantasy': ['fantasy'],
+            'documentary': ['documentary', 'docu'],
+            'animation': ['animation', 'animated', 'cartoon'],
+            'adventure': ['adventure'],
+            'crime': ['crime'],
+            'mystery': ['mystery'],
+            'musical': ['musical', 'music'],
+            'war': ['war'],
+            'western': ['western'],
+            'family': ['family']
+        }
+
+        if not params.get('genre'):
+            for genre, keywords in genre_keywords.items():
+                if self.fuzzy_match(query_lower, keywords):
                     params['genre'] = genre
-                    print(f"DEBUG: Found genre match: {genre}")
-                    return params
-        
-        # If no genre match, use description keywords approach
-        query_words = query_lower.split()
-        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 
-                     'what', 'are', 'is', 'movies', 'movie', 'good', 'best', 'find', 'show', 'me', 'give', 'list'}
-        
-        meaningful_words = [word for word in query_words if word not in stop_words and len(word) > 2]
-        
-        if meaningful_words:
-            params['description_keywords'] = meaningful_words
-        
+                    break
+
+        return params
+    
+    def fuzzy_match(self, word, target_words, threshold=0.7):
+        """Check if word matches any target word with fuzzy matching."""
+        import difflib
+
+        word_lower = word.lower().strip()
+
+        for target in target_words:
+            target_lower = target.lower()
+
+            # Exact match
+            if word_lower == target_lower:
+                return True
+
+            # Check if word contains target or target contains word
+            if word_lower in target_lower or target_lower in word_lower:
+                return True
+
+            # Fuzzy matching using sequence similarity
+            similarity = difflib.SequenceMatcher(None, word_lower, target_lower).ratio()
+            if similarity >= threshold:
+                return True
+
+        return False
+
+    def is_followup_query(self, query, context):
+        """Use Gemini to determine if query is a follow-up or new topic."""
+        try:
+            if self.model:
+                prompt = f"""Determine if this query is a follow-up to the previous conversation or a new topic.
+
+Previous conversation:
+{context}
+
+Current query: {query}
+
+Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a new topic."""
+
+                response = self.model.generate_content(prompt)
+                return "FOLLOWUP" in response.text.upper()
+            else:
+                # Basic heuristics
+                followup_words = ['which', 'what about', 'tell me about', 'more about', 'from', 'in', 'only', 'just']
+                return any(word in query.lower() for word in followup_words)
+        except:
+            return False
+
+    def extract_context_parameters(self, context):
+        """Extract relevant parameters from conversation context."""
+        params = {}
+        context_lower = context.lower()
+
+        # Extract genre from context
+        genre_keywords = {
+            'romance': ['romance', 'romantic'],
+            'action': ['action'],
+            'comedy': ['comedy', 'comedies', 'funny'],
+            'drama': ['drama'],
+            'horror': ['horror', 'scary'],
+            'thriller': ['thriller', 'suspense'],
+            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
+            'fantasy': ['fantasy'],
+            'documentary': ['documentary', 'docu'],
+            'animation': ['animation', 'animated', 'cartoon'],
+            'adventure': ['adventure'],
+            'crime': ['crime'],
+            'mystery': ['mystery'],
+            'musical': ['musical', 'music'],
+            'war': ['war'],
+            'western': ['western'],
+            'family': ['family']
+        }
+
+        for genre, keywords in genre_keywords.items():
+            if any(keyword in context_lower for keyword in keywords):
+                params['genre'] = genre
+                break
+
+        # Extract age group from context
+        if any(word in context_lower for word in ['kids', 'children', 'family']):
+            params['age_group'] = 'Kids'
+
         return params
 
     def filter_movies(self, params):
@@ -155,11 +283,46 @@ Respond in JSON format only."""
         
         filtered = self.movies_df.copy()
         
-        # Genre filtering
+        # Genre filtering - map user genre to actual genre values in dataset
         if params.get('genre'):
-            genre = params['genre']
-            print(f"DEBUG: Filtering by genre: {genre}")
-            filtered = filtered[filtered['genre'].str.contains(genre, case=False, na=False)]
+            user_genre = params['genre'].lower()
+            print(f"DEBUG: User requested genre: {user_genre}")
+            
+            # Map user genres to actual dataset genres
+            genre_mapping = {
+                'comedy': ['Comedy', 'Comedies'],
+                'action': ['Action'],
+                'drama': ['Drama', 'Dramas'],
+                'horror': ['Horror'],
+                'thriller': ['Thriller'],
+                'romance': ['Romance', 'Romantic'],
+                'sci-fi': ['Science Fiction', 'Sci-Fi'],
+                'fantasy': ['Fantasy'],
+                'documentary': ['Documentary'],
+                'animation': ['Animation'],
+                'adventure': ['Adventure'],
+                'crime': ['Crime'],
+                'mystery': ['Mystery'],
+                'musical': ['Musical'],
+                'war': ['War'],
+                'western': ['Western'],
+                'family': ['Family']
+            }
+            
+            actual_genres = genre_mapping.get(user_genre, [user_genre.title()])
+            print(f"DEBUG: Looking for genres: {actual_genres}")
+            
+            # Filter by actual genre values
+            genre_filter = filtered['genre'].isin(actual_genres)
+            if not genre_filter.any():
+                # Try partial matching if exact match fails
+                for genre in actual_genres:
+                    partial_filter = filtered['genre'].str.contains(genre, case=False, na=False)
+                    if partial_filter.any():
+                        genre_filter = partial_filter
+                        break
+            
+            filtered = filtered[genre_filter]
             print(f"DEBUG: After genre filtering: {len(filtered)} movies")
         
         # Description keywords filtering - algorithmic search through actual data
