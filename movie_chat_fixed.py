@@ -317,7 +317,8 @@ def setup_routes():
     
     @app.route('/')
     def index():
-        return render_template('index.html')
+        with open('index.html', 'r') as f:
+            return f.read()
 
     def get_user_id():
         """Get or create user session ID"""
