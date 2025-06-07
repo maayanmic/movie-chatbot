@@ -674,11 +674,14 @@ Examples:
         query_lower = query.lower()
         analytical_indicators = [
             'which one is the best', 'which is better', 'what is the best',
-            'which movie is', 'which film is', 'are they all',
+            'which movie is', 'which film is', 'are they all', 'they are all',
             'how many', 'what rating', 'what popularity', 'rating',
             'popularity', 'compare', 'difference', 'better than',
-            'highest rated', 'most popular', 'recommend one',
-            'what about', 'tell me about', 'describe'
+            'highest rated', 'most popular', 'recommend one', 'pick one',
+            'what about', 'tell me about', 'describe', 'which one you recommend',
+            'which do you recommend', 'what do you recommend', 'your recommendation',
+            'suit for', 'suitable for', 'good for', 'appropriate for',
+            'which one', 'pick', 'choose', 'suggest one'
         ]
         return any(indicator in query_lower for indicator in analytical_indicators)
     
@@ -703,18 +706,20 @@ Examples:
                     })
                 
                 # Create prompt for analysis
-                prompt = f"""Based on the user's question: "{query}"
+                prompt = f"""You are a movie recommendation chatbot. The user is asking: "{query}"
 
-Here are the movies to analyze:
+Here are the movies from their previous search:
 {movies_data}
 
-Please provide a helpful, conversational analysis answering their specific question. Be informative but concise. Focus on the specific aspect they're asking about (ratings, popularity, recommendations, comparisons, etc.).
+Respond naturally and conversationally. Examples:
 
-If they're asking "which is best" - recommend based on highest popularity rating and explain why.
-If they're asking about ratings/popularity - explain the rating system and compare the movies.
-If they're asking for details about specific movies - provide relevant information.
+User asks "which one you recommend?" or "pick one for me" → Choose one specific movie and explain why it's a good choice based on its qualities.
 
-Keep the response natural and helpful."""
+User asks "they are all suit for kids?" → Look at the genres and content, then give a clear yes/no answer with brief explanation.
+
+User asks about ratings/popularity → Explain what the ratings mean and compare the movies.
+
+Be friendly, helpful, and specific. Don't just list movies - have a conversation and make recommendations like a knowledgeable friend would."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
@@ -728,20 +733,38 @@ Keep the response natural and helpful."""
         """Generate basic analytical response without AI."""
         query_lower = query.lower()
         
-        if 'best' in query_lower or 'recommend' in query_lower:
-            # Find highest rated movie
+        if 'pick' in query_lower or 'recommend' in query_lower or 'which one' in query_lower:
+            # Pick the highest rated movie and explain why
             best_movie = filtered_movies.loc[filtered_movies['popular'].idxmax()]
             year = int(best_movie['released']) if pd.notna(best_movie['released']) else 'Unknown'
-            return f"Based on popularity ratings, I'd recommend \"{best_movie['name']}\" ({year}) with a rating of {best_movie['popular']}/5."
+            genre = best_movie['genre'] if pd.notna(best_movie['genre']) else 'Various genres'
+            return f"I'd recommend \"{best_movie['name']}\" ({year}). It has the highest popularity rating of {best_movie['popular']}/5 and it's a great {genre.lower()} film that many viewers have enjoyed."
+        
+        elif 'suit' in query_lower or 'suitable' in query_lower or 'appropriate' in query_lower:
+            # Check if movies are suitable for kids
+            kids_genres = ['children', 'family', 'animation']
+            suitable_count = 0
+            for _, movie in filtered_movies.iterrows():
+                genre = str(movie['genre']).lower() if pd.notna(movie['genre']) else ''
+                if any(kid_genre in genre for kid_genre in kids_genres):
+                    suitable_count += 1
+            
+            if suitable_count == len(filtered_movies):
+                return "Yes, all of these movies are suitable for kids! They're all family-friendly films."
+            elif suitable_count > 0:
+                return f"Most of them are suitable for kids - {suitable_count} out of {len(filtered_movies)} movies are family-friendly."
+            else:
+                return "Not all of these movies are specifically designed for kids. Some might be more suitable for older audiences."
         
         elif 'rating' in query_lower or 'popularity' in query_lower:
             # Analyze ratings
             ratings = filtered_movies['popular'].value_counts().sort_index(ascending=False)
-            rating_summary = []
-            for rating, count in ratings.head(3).items():
-                rating_summary.append(f"{count} movie(s) with {rating}/5 rating")
-            
-            return f"Here's the rating breakdown: {', '.join(rating_summary)}. The movies are rated on a scale of 1-5 for popularity."
+            if len(ratings) == 1:
+                rating = ratings.index[0]
+                return f"Yes, all {len(filtered_movies)} movies have the same popularity rating of {rating}/5! They're all equally popular."
+            else:
+                highest_rating = ratings.index[0]
+                return f"The ratings vary - the highest is {highest_rating}/5, and there are different popularity levels among these movies."
         
         elif 'how many' in query_lower:
             return f"I found {len(filtered_movies)} movies matching your criteria."
