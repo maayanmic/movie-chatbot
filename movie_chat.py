@@ -371,7 +371,15 @@ Return JSON format only."""
                 params['actor'] = words[idx + 1]
         
         # Quick director detection  
-        if 'director' in query_lower:
+        if 'director is' in query_lower:
+            parts = query_lower.split('director is')
+            if len(parts) > 1:
+                director_part = parts[1].strip().split()[0:2]  # Get first 2 words after "director is"
+                if len(director_part) >= 2:
+                    params['director'] = f"{director_part[0].title()} {director_part[1].title()}"
+                elif len(director_part) == 1:
+                    params['director'] = director_part[0].title()
+        elif 'director' in query_lower:
             words = query.split()
             idx = next((i for i, w in enumerate(words) if w.lower() == 'director'), -1)
             if idx >= 0 and idx < len(words) - 2:
