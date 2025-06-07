@@ -721,7 +721,12 @@ Examples:
         if self.is_analytical_question(original_query):
             return self.generate_analytical_response(filtered_movies, original_query)
         else:
-            return self.generate_fallback_response(filtered_movies, params)
+            # Basic movie list response with interactive questions
+            response = self.generate_fallback_response(filtered_movies, params)
+            follow_up = self.add_interactive_questions(params, len(filtered_movies))
+            if follow_up:
+                response += follow_up
+            return response
 
     def is_analytical_question(self, query):
         """Check if the query is asking for analysis rather than recommendations using Gemini."""
