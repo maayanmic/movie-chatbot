@@ -24,7 +24,7 @@ class MovieRecommender:
             api_key = os.environ.get('GEMINI_API_KEY')
             if api_key:
                 genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel('gemini-pro')
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
                 print("Gemini API initialized successfully")
             else:
                 print("Warning: GEMINI_API_KEY not found. Using basic mode.")
