@@ -238,16 +238,16 @@ Return JSON format only."""
 
         # Genre detection using fuzzy matching
         genre_keywords = {
-            'romance': ['romance', 'romantic', 'רומנטי', 'רומנטית', 'אהבה'],
-            'action': ['action', 'אקשן', 'פעולה'],
-            'comedy': ['comedy', 'comedies', 'קומדיה', 'funny'],
-            'drama': ['drama', 'דרמה'],
-            'horror': ['horror', 'אימה', 'scary'],
-            'thriller': ['thriller', 'מתח', 'suspense'],
-            'sci-fi': ['sci-fi', 'science fiction', 'מדע בדיוני', 'scifi'],
-            'fantasy': ['fantasy', 'פנטזיה'],
-            'documentary': ['documentary', 'תיעודי', 'docu'],
-            'animation': ['animation', 'animated', 'אנימציה', 'cartoon']
+            'romance': ['romance', 'romantic'],
+            'action': ['action'],
+            'comedy': ['comedy', 'comedies', 'funny'],
+            'drama': ['drama'],
+            'horror': ['horror', 'scary'],
+            'thriller': ['thriller', 'suspense'],
+            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
+            'fantasy': ['fantasy'],
+            'documentary': ['documentary', 'docu'],
+            'animation': ['animation', 'animated', 'cartoon']
         }
 
         # Split query into words for fuzzy matching
