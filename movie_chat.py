@@ -24,7 +24,7 @@ class MovieRecommender:
             api_key = os.environ.get('GEMINI_API_KEY')
             if api_key:
                 genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                self.model = genai.GenerativeModel('gemini-pro')
                 print("Gemini API initialized successfully")
             else:
                 print("Warning: GEMINI_API_KEY not found. Using basic mode.")
@@ -624,14 +624,7 @@ Examples:
 Here are the most relevant movies from our database:
 {movies_text}
 
-Generate a BRIEF response in English. Use this EXACT format:
-
-Here are some movie recommendations for [criteria]:
-• Movie Title (Year) - Genre, Category
-• Movie Title (Year) - Genre, Category
-• Movie Title (Year) - Genre, Category
-
-Keep it SHORT and simple. No long explanations."""
+Generate a helpful response in English. Start with a brief introduction, then list the movies with their details. Keep it conversational and informative."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
