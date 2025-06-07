@@ -356,8 +356,14 @@ Return JSON format only."""
         """Simple fallback followup detection when Gemini fails."""
         query_lower = query.lower().strip()
         
+        # Clear new topic indicators - if present, it's NOT a follow-up
+        new_topic_words = ['recommend', 'suggest', 'what movies', 'i want', 'i need', 'looking for', 'show me', 'find me']
+        for word in new_topic_words:
+            if word in query_lower:
+                return False
+        
         # Very short queries with common follow-up words
-        simple_followup_indicators = ['only', 'just', 'from', 'and', 'but', 'also']
+        simple_followup_indicators = ['only', 'just', 'from', 'and', 'but', 'also', 'with', 'by']
         if len(query_lower.split()) <= 3:
             for indicator in simple_followup_indicators:
                 if query_lower.startswith(indicator + ' '):
@@ -367,13 +373,22 @@ Return JSON format only."""
         import re
         if re.search(r'\b(19|20)\d{2}\b', query):
             return True
-            
-        # New topic indicators
-        new_topic_words = ['recommend', 'suggest', 'what movies', 'i want', 'i need']
-        for word in new_topic_words:
-            if word in query_lower:
-                return False
         
+        # Questions about current results (indicating follow-up)
+        followup_questions = [
+            'there is more', 'any more', 'more options', 'show more', 'what else',
+            'anything else', 'other options', 'more movies', 'is there more',
+            'got more', 'have more', 'see more', 'more results'
+        ]
+        
+        for question in followup_questions:
+            if question in query_lower:
+                return True
+        
+        # Very short queries are likely follow-ups if they don't contain new topic words
+        if len(query_lower.split()) <= 2:
+            return True
+            
         return False
 
     def extract_context_parameters(self, context):
