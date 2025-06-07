@@ -714,6 +714,9 @@ Examples:
             filtered['combined_score'] = (0.7 * filtered['popular']) + (0.3 * (filtered['released'] - 2000) / 24)
             filtered = filtered.sort_values('combined_score', ascending=False)
 
+        # Remove duplicates before returning results
+        filtered = filtered.drop_duplicates(subset=['name'], keep='first')
+        
         result = filtered.head(6)
         print(f"DEBUG: Final results summary:")
         for i, (_, movie) in enumerate(result.iterrows(), 1):
