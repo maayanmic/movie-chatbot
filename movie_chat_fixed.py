@@ -130,7 +130,8 @@ Respond in JSON format only."""
         if hasattr(self, 'movies_df') and not self.movies_df.empty:
             unique_genres = self.movies_df['genre'].dropna().unique()
             for genre in unique_genres:
-                if genre.lower() in query_lower:
+                # Only match if it's a meaningful genre (not generic words like "Movies")
+                if len(genre) > 4 and genre.lower() in query_lower and genre.lower() not in ['movies', 'films']:
                     params['genre'] = genre
                     print(f"DEBUG: Found genre match: {genre}")
                     return params
@@ -184,8 +185,20 @@ Respond in JSON format only."""
                 
                 print(f"DEBUG: After description filtering: {len(filtered)} movies")
         
-        # Sort by popularity if available
-        if 'popular' in filtered.columns:
+        # Apply weighted scoring and sort (70% popularity, 30% year)
+        if not filtered.empty and 'popular' in filtered.columns and 'released' in filtered.columns:
+            # Normalize popularity (0-5 scale) and year (assume 1900-2025 range)
+            filtered['popularity_normalized'] = filtered['popular'] / 5.0
+            current_year = 2025
+            filtered['year_normalized'] = (filtered['released'] - 1900) / (current_year - 1900)
+            
+            # Calculate combined score: 70% popularity + 30% year
+            filtered['combined_score'] = (0.7 * filtered['popularity_normalized']) + (0.3 * filtered['year_normalized'])
+            
+            # Sort by combined score (highest first)
+            filtered = filtered.sort_values('combined_score', ascending=False)
+        elif 'popular' in filtered.columns:
+            # Fallback to popularity only if year data unavailable
             filtered = filtered.sort_values('popular', ascending=False)
         
         return filtered
