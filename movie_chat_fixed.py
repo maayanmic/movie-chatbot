@@ -121,61 +121,57 @@ Respond in JSON format only."""
             return self.basic_parameter_extraction(user_query, conversation_context)
 
     def basic_parameter_extraction(self, query, conversation_context=""):
-        """Basic fallback parameter extraction without AI."""
+        """Basic fallback parameter extraction without AI - uses general algorithmic approach."""
         params = {
             'genre': None, 'year_range': None, 'actor': None, 'director': None,
             'country': None, 'age_group': None, 'popular': None, 'runtime': None,
             'runtime_operator': None, 'description_keywords': [], 'intent': 'recommend'
         }
         
-        query_lower = query.lower()
+        # Use description keywords to let the filter handle the search algorithmically
+        # This avoids hardcoded keyword lists and uses the actual movie data
+        query_words = query.lower().split()
         
-        # Age group detection
-        if any(word in query_lower for word in ['kid', 'children', 'child', 'family']):
-            params['age_group'] = 'Kids'
+        # Extract meaningful words (not stop words)
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 
+                     'what', 'are', 'is', 'movies', 'movie', 'good', 'best', 'find', 'show', 'me'}
         
-        # Genre detection (basic)
-        genre_mapping = {
-            'action': 'action', 'comedy': 'comedies', 'drama': 'dramas',
-            'horror': 'horror', 'romance': 'romance', 'thriller': 'thrillers'
-        }
+        meaningful_words = [word for word in query_words if word not in stop_words and len(word) > 2]
         
-        for word, genre in genre_mapping.items():
-            if word in query_lower:
-                params['genre'] = genre
-                break
+        if meaningful_words:
+            params['description_keywords'] = meaningful_words
         
         return params
 
     def filter_movies(self, params):
-        """Filter movies based on extracted parameters."""
+        """Filter movies based on extracted parameters using algorithmic approach."""
         print(f"DEBUG: Starting with {len(self.movies_df)} movies")
         print(f"DEBUG: Parameters: {params}")
         
         filtered = self.movies_df.copy()
         
-        # Age group filtering
-        if params.get('age_group') == 'Kids':
-            child_genres = ['children', 'family', 'animation', 'animated']
-            pattern = '|'.join(child_genres)
-            filtered = filtered[filtered['genre'].str.contains(pattern, case=False, na=False)]
-            print(f"DEBUG: After age group filtering: {len(filtered)} movies found")
-        
-        # Basic genre filtering
-        if params.get('genre'):
-            genre_filter = params['genre']
-            if isinstance(genre_filter, list):
-                genre_filter = genre_filter[0]
+        # Description keywords filtering - algorithmic search through actual data
+        if params.get('description_keywords'):
+            keywords = params['description_keywords']
+            print(f"DEBUG: Filtering by description keywords: {keywords}")
             
-            genre_mapping = {
-                'action': 'action', 'comedy': 'comed', 'comedies': 'comed',
-                'drama': 'drama', 'horror': 'horror', 'romance': 'romance',
-                'thriller': 'thriller', 'children': 'children'
-            }
-            
-            mapped_genre = genre_mapping.get(genre_filter.lower(), genre_filter.lower())
-            filtered = filtered[filtered['genre'].str.contains(mapped_genre, case=False, na=False)]
-            print(f"DEBUG: After genre filtering: {len(filtered)} movies found")
+            # Create a combined text field for searching
+            if 'name' in filtered.columns and 'genre' in filtered.columns:
+                # Search in movie names and genres algorithmically
+                search_text = filtered['name'].fillna('') + ' ' + filtered['genre'].fillna('')
+                
+                # Apply each keyword as a filter
+                for keyword in keywords:
+                    print(f"DEBUG: Searching for keyword '{keyword}'")
+                    mask = search_text.str.contains(keyword, case=False, na=False)
+                    keyword_matches = filtered[mask]
+                    print(f"DEBUG: Found {len(keyword_matches)} movies with '{keyword}'")
+                    
+                    if not keyword_matches.empty:
+                        filtered = keyword_matches
+                        break  # Use first successful keyword match
+                
+                print(f"DEBUG: After description filtering: {len(filtered)} movies")
         
         # Sort by popularity if available
         if 'popular' in filtered.columns:
