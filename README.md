@@ -16,18 +16,18 @@ pip install flask pandas google-generativeai
 ### Windows:
 ```cmd
 set GEMINI_API_KEY=your_api_key_here
-python movie_app.py
+python movie_chat.py
 ```
 
 ### Mac/Linux:
 ```bash
 export GEMINI_API_KEY=your_api_key_here
-python movie_app.py
+python movie_chat.py
 ```
 
 ## הרצה
 ```bash
-python movie_app.py
+python movie_chat.py
 ```
 פתחי דפדפן: http://localhost:5000
 
