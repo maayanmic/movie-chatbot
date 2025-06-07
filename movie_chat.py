@@ -427,19 +427,28 @@ Examples:
                 'romantic': 'romantic',
                 'action': 'action',
                 'comedy': 'comedies',
+                'comedies': 'comedies',
                 'drama': 'dramas',
+                'dramas': 'dramas',
                 'horror': 'horror',
                 'thriller': 'thriller',
                 'sci-fi': 'sci-fi',
                 'fantasy': 'fantasy',
                 'documentary': 'documentaries',
-                'animation': 'children'
+                'animation': 'children',
+                'children': 'children',
+                'kids': 'children',
+                'family': 'children',
+                'children & family movies': 'children',
+                'family movies': 'children'
             }
 
             # Use mapped genre or original if no mapping exists
             search_genre = genre_mapping.get(genre, genre)
+            print(f"DEBUG: Genre filtering - original: {genre_value}, processed: {genre}, mapped to: {search_genre}")
             genre_mask = filtered['genre'].str.contains(search_genre, case=False, na=False)
             filtered = filtered[genre_mask]
+            print(f"DEBUG: After genre filtering: {len(filtered)} movies found")
 
         # Year range filtering
         if params.get('year_range'):
