@@ -101,60 +101,24 @@ class MovieRecommender:
         print(f"DEBUG: Processing query: {user_query}")
         print(f"DEBUG: Conversation context: {conversation_context[:200]}...")
 
-        system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
+        system_prompt = """Extract movie search parameters from user query. If previous conversation context exists, include those parameters too.
 
-IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be extremely flexible with genre recognition and spelling variations.
+Return JSON with these fields (use null if not mentioned):
+{
+  "genre": "action/comedy/drama/horror/romance/etc",
+  "year_range": [min_year, max_year],
+  "actor": "actor name",
+  "director": "director name",
+  "country": "country name", 
+  "age_group": "Kids/Teens/Adults",
+  "popular": "high/medium/low",
+  "runtime": duration_in_minutes,
+  "runtime_operator": "greater_than/less_than/equal_to",
+  "description_keywords": ["keyword1", "keyword2"],
+  "intent": "recommend/general_movie_question/off_topic"
+}
 
-CONTEXT HANDLING: When analyzing the current query, consider the previous conversation context to understand:
-- Follow-up questions (e.g., "only from 2019" after asking for kids movies)
-- Refinements (e.g., "something newer" or "more recent")
-- Continuations (e.g., "and also" or "what about")
-- References to previous recommendations
-
-CRITICAL INHERITANCE RULE: When conversation context is provided, you MUST ALWAYS extract parameters from BOTH the context AND the current query. Never ignore context parameters.
-
-MANDATORY EXAMPLES:
-Context: "User: give me drama movies" → Current: "for adults only"
-MUST RETURN: genre: "Drama", age_group: "Adults"
-
-Context: "User: drama movies" → Current: "what released in 2019?"  
-MUST RETURN: genre: "Drama", year_range: [2019, 2019]
-
-Context: "User: romantic movies" → Current: "from 2020"
-MUST RETURN: genre: "Romance", year_range: [2020, 2020]
-
-RULE: If the context mentions ANY parameter (genre, age_group, actor, etc.), include it in your response even if the current query doesn't mention it.
-
-EXAMPLES:
-Previous: "romantic movies" → Current: "from 2020" → Return: genre: "romantic", year_range: [2020, 2020]
-Previous: "action movies" → Current: "with Tom Cruise" → Return: genre: "action", actor: "Tom Cruise"
-
-GENRE VARIATIONS TO RECOGNIZE (including common typos):
-- Romance/Romantic: "romance", "romantic", "rommantic", "rommntic", "rommance", "romence", "romanc", "רומנטי", "רומנטית", "אהבה"
-- Action: "action", "actoin", "akshen", "אקשן", "פעולה"
-- Comedy: "comedy", "comdy", "komedia", "funny", "קומדיה"
-- Drama: "drama", "drame", "דרמה"
-- Horror: "horror", "scary", "horer", "horor", "אימה"
-- Thriller: "thriller", "thriler", "suspense", "מתח"
-- Sci-Fi: "sci-fi", "science fiction", "scifi", "sci fi", "מדע בדיוני"
-- Fantasy: "fantasy", "fantesy", "פנטזיה"
-- Documentary: "documentary", "documentry", "docu", "תיעודי"
-- Animation: "animation", "animated", "animtion", "cartoon", "אנימציה"
-
-Extract the following information from the user's query and return as JSON:
-- age_group: target age group ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
-- genre: specific genre ONLY if explicitly mentioned - be extremely flexible with spelling variations - if not mentioned, use null
-- year_range: [min_year, max_year] ONLY if years are explicitly mentioned - if not mentioned, use null
-- country: specific country ONLY if explicitly mentioned - if not mentioned, use null
-- popular: ONLY if user explicitly asks for popular/top movies (high, medium, low) OR specific rating (1, 2, 3, 4, 5) - if not mentioned, use null
-- actor: actor/actress name ONLY if explicitly mentioned - if not mentioned, use null
-- director: director name ONLY if explicitly mentioned - if not mentioned, use null
-- runtime: ONLY if duration is explicitly mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90) - if not mentioned, use null
-- runtime_operator: ONLY if runtime comparison is mentioned: "greater_than", "less_than", "equal_to" or "between" - if not mentioned, use null
-- description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"]) - if no plot description, use null
-- intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
-
-Return JSON format only."""
+Be flexible with spelling and handle Hebrew/English text."""
 
         try:
             if self.model:
@@ -673,26 +637,11 @@ Examples:
         """Check if the query is asking for analysis rather than recommendations using Gemini."""
         try:
             if self.model:
-                prompt = f"""Is this query asking for analysis/conversation about existing results, or asking for new movie search?
+                prompt = f"""Is this asking for analysis of existing movies or searching for new movies?
 
 Query: "{query}"
 
-Respond with just "ANALYSIS" or "SEARCH".
-
-ANALYSIS examples:
-- "which one is the best?"
-- "pick one for me"
-- "are they suitable for kids?"
-- "what about the ratings?"
-- "tell me more about..."
-- "which do you recommend?"
-
-SEARCH examples:
-- "show me action movies"
-- "find comedy from 2020"
-- "I want romantic films"
-- "get me thriller movies"
-"""
+Respond with just "ANALYSIS" or "SEARCH"."""
                 response = self.model.generate_content(prompt)
                 return "ANALYSIS" in response.text.upper()
             else:
