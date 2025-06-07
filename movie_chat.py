@@ -255,6 +255,18 @@ Return JSON format only."""
                 print(f"DEBUG: Detected kids request from current query: {indicator}")
                 break
 
+        # Additional age groups detection
+        if not params.get('age_group'):
+            if 'adults' in query_lower or 'adult' in query_lower:
+                params['age_group'] = 'Adults'
+                print(f"DEBUG: Detected age group 'Adults' from query")
+            elif 'teens' in query_lower or 'teenager' in query_lower:
+                params['age_group'] = 'Teens'
+                print(f"DEBUG: Detected age group 'Teens' from query")
+            elif 'young adults' in query_lower or ('young' in query_lower and 'adult' in query_lower):
+                params['age_group'] = 'Young Adults'
+                print(f"DEBUG: Detected age group 'Young Adults' from query")
+
         # Genre detection using fuzzy matching
         genre_keywords = {
             'romance': ['romance', 'romantic'],
