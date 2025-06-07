@@ -862,7 +862,22 @@ Be friendly but CONCISE. Keep it short and helpful."""
         for _, movie in filtered_movies.iterrows():
             year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
             genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown genre'
-            response += f"• {movie['name']} ({year}) - {genre}\n"
+            # Format runtime to hours and minutes
+            runtime_text = ""
+            if pd.notna(movie['runtime']) and movie['runtime'] != '':
+                try:
+                    runtime_minutes = int(float(movie['runtime']))
+                    if runtime_minutes > 0:
+                        hours = runtime_minutes // 60
+                        minutes = runtime_minutes % 60
+                        if hours > 0:
+                            runtime_text = f" | {hours}h {minutes}m" if minutes > 0 else f" | {hours}h"
+                        else:
+                            runtime_text = f" | {minutes}m"
+                except (ValueError, TypeError):
+                    runtime_text = ""
+            
+            response += f"• <span class='movie-title'>{movie['name']}</span> <span class='movie-year'>({year})</span> - <span class='movie-genre'>{genre}</span><span class='movie-runtime'>{runtime_text}</span>\n"
 
         return response
 
