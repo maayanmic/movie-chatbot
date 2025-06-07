@@ -362,22 +362,34 @@ Return JSON format only."""
             params['year_range'] = [2019, 2021]
 
         # Quick actor detection with fuzzy matching
-        actor_keywords = ['starring', 'with', 'featuring']
-        for keyword in actor_keywords:
-            if keyword in query_lower or any(self.fuzzy_match(word, [keyword], threshold=0.8) for word in query_lower.split()):
-                words = query.split()
-                # Find the keyword position (exact or fuzzy)
-                idx = -1
-                for i, word in enumerate(words):
-                    if word.lower() == keyword or self.fuzzy_match(word.lower(), [keyword], threshold=0.8):
-                        idx = i
-                        break
-                
-                if idx >= 0 and idx < len(words) - 2:
-                    params['actor'] = f"{words[idx + 1]} {words[idx + 2]}"
-                elif idx >= 0 and idx < len(words) - 1:
-                    params['actor'] = words[idx + 1]
-                break
+        # Handle "X is in the cast" pattern
+        if 'in the cast' in query_lower or 'is in' in query_lower:
+            words = query.split()
+            for i, word in enumerate(words):
+                if word.lower() == 'is' and i > 0:
+                    if i == 1:  # Single name before "is"
+                        params['actor'] = words[i-1]
+                    elif i >= 2:  # Two names before "is"
+                        params['actor'] = f"{words[i-2]} {words[i-1]}"
+                    break
+        else:
+            # Handle regular keywords
+            actor_keywords = ['starring', 'with', 'featuring']
+            for keyword in actor_keywords:
+                if keyword in query_lower or any(self.fuzzy_match(word, [keyword], threshold=0.8) for word in query_lower.split()):
+                    words = query.split()
+                    # Find the keyword position (exact or fuzzy)
+                    idx = -1
+                    for i, word in enumerate(words):
+                        if word.lower() == keyword or self.fuzzy_match(word.lower(), [keyword], threshold=0.8):
+                            idx = i
+                            break
+                    
+                    if idx >= 0 and idx < len(words) - 2:
+                        params['actor'] = f"{words[idx + 1]} {words[idx + 2]}"
+                    elif idx >= 0 and idx < len(words) - 1:
+                        params['actor'] = words[idx + 1]
+                    break
         
         # Quick director detection with fuzzy matching
         director_keywords = ['director', 'directed']
