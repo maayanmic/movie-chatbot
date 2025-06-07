@@ -36,8 +36,8 @@ class MovieRecommender:
             print("Warning: GEMINI_API_KEY not found. Using basic functionality only.")
         
         # Load movie data
-        self.movies_df = self.load_movies(csv_file_path)
-        print(f"Successfully loaded {len(self.movies_df)} movies")
+        self.movies = self.load_movies(csv_file_path)
+        print(f"Successfully loaded {len(self.movies)} movies")
 
     def load_movies(self, csv_file_path):
         """Load and validate movie data from CSV."""
@@ -599,7 +599,7 @@ def initialize_system():
     # Initialize recommender
     csv_path = 'attached_assets/MergeAndCleaned_Movies.csv'
     recommender = MovieRecommender(csv_path)
-    movies_df = recommender.movies_df
+    movies_df = recommender.movies
     
     print("System initialized successfully!")
 
