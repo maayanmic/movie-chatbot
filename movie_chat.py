@@ -194,18 +194,10 @@ Return JSON format only."""
         }
         
         # Check if this is a follow-up query based on conversation context
-        print(f"DEBUG: Context received: '{conversation_context[:100] if conversation_context else 'None'}'")
         if conversation_context:
-            print(f"DEBUG: Checking if query '{query}' is follow-up with context")
             if self.is_followup_query(query, conversation_context):
-                print("DEBUG: Detected follow-up query, extracting context parameters")
                 context_params = self.extract_context_parameters(conversation_context)
                 params.update(context_params)
-                print(f"DEBUG: Updated params with context: {params}")
-            else:
-                print("DEBUG: Not detected as follow-up query")
-        else:
-            print("DEBUG: No conversation context available")
         
         # Extract additional parameters from the current query itself 
         # (beyond what was extracted from context)
@@ -248,7 +240,7 @@ Return JSON format only."""
         genre_keywords = {
             'romance': ['romance', 'romantic', 'רומנטי', 'רומנטית', 'אהבה'],
             'action': ['action', 'אקשן', 'פעולה'],
-            'comedy': ['comedy', 'קומדיה', 'funny'],
+            'comedy': ['comedy', 'comedies', 'קומדיה', 'funny'],
             'drama': ['drama', 'דרמה'],
             'horror': ['horror', 'אימה', 'scary'],
             'thriller': ['thriller', 'מתח', 'suspense'],
@@ -315,7 +307,6 @@ Return JSON format only."""
         ]
         
         query_lower = query.lower().strip()
-        print(f"DEBUG: Checking if '{query_lower}' is follow-up query")
         
         # Short queries with follow-up indicators are likely follow-ups
         if len(query_lower.split()) <= 4:
@@ -325,7 +316,6 @@ Return JSON format only."""
                     f' {indicator} ' in f' {query_lower} ' or 
                     query_lower == indicator or
                     query_lower.startswith(indicator)):
-                    print(f"DEBUG: Found follow-up indicator '{indicator}' in query '{query}'")
                     return True
         
         # Check for year patterns (2019, 2020, etc.)
@@ -693,14 +683,11 @@ def setup_routes():
     def get_conversation_context(user_id):
         """Get recent conversation context for user"""
         if user_id not in conversation_memory:
-            print(f"DEBUG: User {user_id} not in conversation memory")
             return ""
 
         if not conversation_memory[user_id]:
-            print(f"DEBUG: No conversations for user {user_id}")
             return ""
 
-        print(f"DEBUG: Found {len(conversation_memory[user_id])} conversations for user {user_id}")
         context = "Previous conversation:\n"
         for conv in conversation_memory[user_id][-3:]:  # Last 3 conversations
             context += f"User: {conv['user_query']}\n"
