@@ -14,36 +14,17 @@ conversation_memory = {}
 recommender = None
 
 class MovieRecommender:
-    def _get_api_key(self):
-        """Get API key from multiple sources in order of priority."""
-        # Try environment variable first
-        api_key = os.environ.get('GEMINI_API_KEY')
-        if api_key:
-            return api_key
-        
-        # Try config.py file
-        try:
-            import config
-            if hasattr(config, 'GEMINI_API_KEY'):
-                return config.GEMINI_API_KEY
-        except ImportError:
-            pass
-        
-        return None
-    
     def __init__(self, csv_file_path):
         """Initialize the movie recommender with CSV data and Gemini client."""
         try:
             # Initialize Gemini
-            api_key = self._get_api_key()
+            api_key = os.environ.get('GEMINI_API_KEY')
             if api_key:
                 genai.configure(api_key=api_key)
                 self.model = genai.GenerativeModel('gemini-pro')
                 print("Gemini API initialized successfully")
             else:
                 print("Warning: GEMINI_API_KEY not found. Using basic mode.")
-                print("To enable full functionality, set GEMINI_API_KEY environment variable")
-                print("or create a config.py file with your API key")
                 self.model = None
             
             # Load movie data
