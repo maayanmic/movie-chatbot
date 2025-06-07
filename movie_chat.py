@@ -799,7 +799,11 @@ Be friendly but CONCISE. Keep it short and helpful."""
                 criteria.append(f"from {params['country']}")
 
             if criteria:
-                intro += f" for {' and '.join(criteria)}"
+                # Handle the grammar properly to avoid "for suitable for"
+                if len(criteria) == 1 and criteria[0].startswith('suitable for'):
+                    intro += f" {criteria[0]}"
+                else:
+                    intro += f" for {' and '.join(criteria)}"
 
         intro += ":\n\n"
 
