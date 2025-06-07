@@ -281,44 +281,57 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
         
         filtered = self.movies.copy()
         
-        # Genre filtering - map user genre to actual genre values in dataset
+        # Genre filtering with age-appropriate considerations
         if params.get('genre'):
             user_genre = params['genre'].lower()
             print(f"DEBUG: User requested genre: {user_genre}")
             
-            # Map user genres to actual dataset genres
-            genre_mapping = {
-                'comedy': ['Comedy', 'Comedies'],
-                'action': ['Action'],
-                'drama': ['Drama', 'Dramas'],
-                'horror': ['Horror'],
-                'thriller': ['Thriller'],
-                'romance': ['Romance', 'Romantic'],
-                'sci-fi': ['Science Fiction', 'Sci-Fi'],
-                'fantasy': ['Fantasy'],
-                'documentary': ['Documentary'],
-                'animation': ['Animation'],
-                'adventure': ['Adventure'],
-                'crime': ['Crime'],
-                'mystery': ['Mystery'],
-                'musical': ['Musical'],
-                'war': ['War'],
-                'western': ['Western'],
-                'family': ['Family']
-            }
-            
-            actual_genres = genre_mapping.get(user_genre, [user_genre.title()])
-            print(f"DEBUG: Looking for genres: {actual_genres}")
-            
-            # Filter by actual genre values
-            genre_filter = filtered['genre'].isin(actual_genres)
-            if not genre_filter.any():
-                # Try partial matching if exact match fails
+            # Special handling for kids content requests
+            if params.get('age_group') == 'Kids':
+                if 'comedy' in user_genre or user_genre == 'comedies':
+                    # For kids comedy, look for family-friendly comedy content
+                    genre_filter = filtered['genre'].str.contains('Children & Family Movies.*Comedies', case=False, na=False)
+                    print(f"DEBUG: Looking for kids comedy: Children & Family Movies, Comedies")
+                elif 'action' in user_genre:
+                    genre_filter = filtered['genre'].str.contains('Children & Family Movies.*Action', case=False, na=False)
+                    print(f"DEBUG: Looking for kids action: Children & Family Movies with Action")
+                elif 'animation' in user_genre:
+                    genre_filter = filtered['genre'].str.contains('Anime|Animation|Children & Family Movies', case=False, na=False)
+                    print(f"DEBUG: Looking for kids animation/anime content")
+                else:
+                    # For other kids genres, prioritize Children & Family Movies
+                    genre_filter = filtered['genre'].str.contains('Children & Family Movies', case=False, na=False)
+                    print(f"DEBUG: Looking for general kids content: Children & Family Movies")
+            else:
+                # Regular genre mapping for non-kids content
+                genre_mapping = {
+                    'comedy': ['Comedies'],
+                    'action': ['Action'],
+                    'drama': ['Dramas'],
+                    'horror': ['Horror'],
+                    'thriller': ['Thriller'],
+                    'romance': ['Romantic'],
+                    'sci-fi': ['Sci-Fi'],
+                    'fantasy': ['Fantasy'],
+                    'documentary': ['Documentaries'],
+                    'animation': ['Animation'],
+                    'adventure': ['Adventure'],
+                    'crime': ['Crime'],
+                    'mystery': ['Mystery'],
+                    'musical': ['Music & Musicals'],
+                    'war': ['War'],
+                    'western': ['Western'],
+                    'stand-up comedy': ['Stand-Up Comedy']
+                }
+                
+                actual_genres = genre_mapping.get(user_genre, [user_genre.title()])
+                print(f"DEBUG: Looking for genres: {actual_genres}")
+                
+                # Filter by partial matching for multi-genre entries
+                genre_filter = pd.Series([False] * len(filtered))
                 for genre in actual_genres:
                     partial_filter = filtered['genre'].str.contains(genre, case=False, na=False)
-                    if partial_filter.any():
-                        genre_filter = partial_filter
-                        break
+                    genre_filter = genre_filter | partial_filter
             
             filtered = filtered[genre_filter]
             print(f"DEBUG: After genre filtering: {len(filtered)} movies")
