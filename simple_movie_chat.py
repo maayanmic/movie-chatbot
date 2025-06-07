@@ -98,6 +98,7 @@ class MovieRecommender:
 
     def extract_query_parameters(self, user_query):
         """Use Gemini to extract parameters from natural language query."""
+        print(f"DEBUG: Processing query: {user_query}")
 
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
@@ -143,6 +144,7 @@ Return JSON format only."""
                     response_text = response_text[3:-3].strip()
 
                 params = json.loads(response_text)
+                print(f"DEBUG: Gemini extracted parameters: {params}")
                 return params
             else:
                 return self.basic_parameter_extraction(user_query)
@@ -213,6 +215,8 @@ Return JSON format only."""
         """Filter movies based on extracted parameters."""
         filtered = self.movies.copy()
         is_specific_search = bool(params.get('description_keywords'))
+        print(f"DEBUG: Starting with {len(filtered)} movies")
+        print(f"DEBUG: Parameters: {params}")
 
         # Genre filtering with mapping to actual CSV genres
         if params.get('genre') and params['genre'] != 'Unknown':
@@ -291,6 +295,7 @@ Return JSON format only."""
         if params.get('description_keywords'):
             keywords = params['description_keywords']
             filtered['keyword_score'] = 0
+            print(f"DEBUG: Filtering by description keywords: {keywords}")
 
             for keyword in keywords:
                 if len(keyword) > 2:
@@ -298,6 +303,7 @@ Return JSON format only."""
                     filtered.loc[keyword_mask, 'keyword_score'] += 1
 
             keyword_filtered = filtered[filtered['keyword_score'] > 0]
+            print(f"DEBUG: After description filtering: {len(keyword_filtered)} movies")
             if not keyword_filtered.empty:
                 filtered = keyword_filtered
 
@@ -321,7 +327,11 @@ Return JSON format only."""
             filtered['combined_score'] = (0.7 * filtered['popular']) + (0.3 * (filtered['released'] - 2000) / 24)
             filtered = filtered.sort_values('combined_score', ascending=False)
 
-        return filtered.head(6)
+        result = filtered.head(6)
+        print(f"DEBUG: Final results summary:")
+        for i, (_, movie) in enumerate(result.iterrows(), 1):
+            print(f"  {i}. {movie['name']} - Popularity: {movie['popular']}")
+        return result
 
     def get_recommendation(self, user_query):
         """Main method to get movie recommendations based on user query."""
