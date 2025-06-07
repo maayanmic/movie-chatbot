@@ -24,7 +24,7 @@ class MovieRecommender:
             api_key = os.environ.get('GEMINI_API_KEY')
             if api_key:
                 genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel('gemini-pro')
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
                 print("Gemini API initialized successfully")
             else:
                 print("Warning: GEMINI_API_KEY not found. Using basic mode.")
@@ -180,7 +180,7 @@ Return JSON format only."""
             return self.basic_parameter_extraction(user_query, conversation_context)
 
     def basic_parameter_extraction(self, query, conversation_context=""):
-        """Basic fallback parameter extraction without AI."""
+        """Simple fallback when Gemini is not available."""
         params = {
             'age_group': None,
             'genre': None,
@@ -195,110 +195,31 @@ Return JSON format only."""
         
         # Check if this is a follow-up query based on conversation context
         if conversation_context:
-            if self.is_followup_query(query, conversation_context):
+            is_followup = len(query.split()) <= 3  # Simple fallback logic
+            if is_followup:
                 context_params = self.extract_context_parameters(conversation_context)
                 params.update(context_params)
+                print(f"DEBUG: Fallback inherited context parameters")
         
-        # Extract additional parameters from the current query itself 
-        # (beyond what was extracted from context)
+        # Simple genre detection as last resort
         query_lower = query.lower()
+        if 'drama' in query_lower:
+            params['genre'] = 'Drama'
+        elif 'comedy' in query_lower:
+            params['genre'] = 'Comedy'
+        elif 'action' in query_lower:
+            params['genre'] = 'Action'
+        elif 'horror' in query_lower:
+            params['genre'] = 'Horror'
+        elif 'romance' in query_lower or 'romantic' in query_lower:
+            params['genre'] = 'Romance'
         
-        # Simple age detection for kids content
-        age_indicators = ['year old', 'years old', 'month old', 'months old', 'baby', 'toddler', 'infant']
-        for indicator in age_indicators:
-            if indicator in query_lower:
-                # Extract age if mentioned
-                import re
-                age_match = re.search(r'(\d+)\s*(year|month)', query_lower)
-                if age_match:
-                    age_num = int(age_match.group(1))
-                    age_unit = age_match.group(2)
-                    
-                    # Convert to approximate age groups
-                    if (age_unit == 'month' and age_num <= 24) or (age_unit == 'year' and age_num <= 2):
-                        params['age_group'] = 'Kids'
-                        print(f"DEBUG: Detected very young age ({age_num} {age_unit}), setting to Kids")
-                    elif age_unit == 'year' and age_num <= 12:
-                        params['age_group'] = 'Kids'
-                        print(f"DEBUG: Detected child age ({age_num} {age_unit}), setting to Kids")
-                break
-        
-        # Kids/Family detection
-        kids_indicators = [
-            'for kids', 'for children', 'suitable for kids', 'suit to kids', 
-            'that will suit', 'appropriate for kids', 'family friendly',
-            'children can watch', 'kids can watch', 'child friendly'
-        ]
-        
-        for indicator in kids_indicators:
-            if indicator in query_lower:
-                params['age_group'] = 'Kids'
-                print(f"DEBUG: Detected kids request from current query: {indicator}")
-                break
-
-        # Genre detection using fuzzy matching
-        genre_keywords = {
-            'romance': ['romance', 'romantic'],
-            'action': ['action'],
-            'comedy': ['comedy', 'comedies', 'funny'],
-            'drama': ['drama'],
-            'horror': ['horror', 'scary'],
-            'thriller': ['thriller', 'suspense'],
-            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
-            'fantasy': ['fantasy'],
-            'documentary': ['documentary', 'docu'],
-            'animation': ['animation', 'animated', 'cartoon']
-        }
-
-        # Split query into words for fuzzy matching
-        query_words = query.lower().split()
-
-        for genre, keywords in genre_keywords.items():
-            for word in query_words:
-                # Use higher threshold for more accurate matching
-                if len(word) >= 3 and self.fuzzy_match(word, keywords, threshold=0.8):
-                    params['genre'] = genre.title()
-                    break
-            if params['genre']:
-                break
-
-        # Extract keywords for description search - improved to catch more patterns
-        description_keywords = []
-        query_lower = query.lower()
-        
-        # Look for story patterns
-        story_indicators = ['about', 'movie about', 'film about', 'story of', 'follows', 'centers on']
-        
-        for indicator in story_indicators:
-            if indicator in query_lower:
-                start_pos = query_lower.find(indicator) + len(indicator)
-                remaining_text = query[start_pos:].strip()
-                words = remaining_text.split()
-                meaningful_words = [word for word in words if len(word) > 2 and  # Changed from 3 to 2
-                                  word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which', 'and', 'the', 'his', 'her']]
-                description_keywords.extend(meaningful_words[:7])  # Increased from 5 to 7
-                break
-        
-        # Also look for specific key terms in the query
-        key_terms = ['doctor', 'psychiatrist', 'missing', 'wife', 'treat', 'medical', 'condition', 'patient']
-        for term in key_terms:
-            if term in query_lower and term not in description_keywords:
-                description_keywords.append(term)
-
-        if description_keywords:
-            params['description_keywords'] = description_keywords[:7]  # Limit to 7 terms
-
-        # Extract year from current query if present
+        # Simple year extraction
         import re
         year_match = re.search(r'\b(19|20)(\d{2})\b', query)
         if year_match:
             year = int(year_match.group(0))
             params['year_range'] = [year, year]
-
-        # Handle temporal keywords (recent, latest, new, etc.)
-        if any(word in query_lower for word in ['recent', 'latest', 'new', 'newer']):
-            # Set to recent years (2019-2021)
-            params['year_range'] = [2019, 2021]
 
         return params
 
