@@ -349,9 +349,26 @@ Examples:
                 return True
                 
         except Exception as e:
-            print(f"DEBUG: Gemini failed: {str(e)}, using simple fallback")
-            # Simple fallback: short queries are usually follow-ups
-            return len(query.split()) <= 3
+            print(f"DEBUG: Gemini failed: {str(e)}, using enhanced fallback")
+            # Enhanced fallback when Gemini is unavailable
+            query_lower = query.lower().strip()
+            
+            # Clear new topic indicators
+            if any(phrase in query_lower for phrase in ['what movies', 'recommend', 'suggest', 'i want movies', 'i need']):
+                return False
+            
+            # Strong follow-up indicators (regardless of length)
+            follow_indicators = ['only', 'just', 'from', 'but', 'and', 'also', 'more', 'other', 'newer', 'older']
+            if any(query_lower.startswith(word + ' ') for word in follow_indicators):
+                return True
+            
+            # Year patterns indicate refinement
+            import re
+            if re.search(r'\b(19|20)\d{2}\b', query):
+                return True
+            
+            # Default: short queries are follow-ups
+            return len(query.split()) <= 4
 
 
     def extract_context_parameters(self, context):
