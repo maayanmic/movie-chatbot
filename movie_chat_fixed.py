@@ -542,43 +542,43 @@ Answer in 1-2 sentences max. Be direct and helpful."""
         # Check what parameters were used
         if params.get('genre'):
             genre = params['genre']
-            intro_parts.append(f"סרטי {genre}")
+            intro_parts.append(f"{genre} movies")
         
         if params.get('age_group'):
             age_group = params['age_group']
             age_mapping = {
-                'Kids': 'ילדים',
-                'Teens': 'נוער', 
-                'Adults': 'מבוגרים',
-                'Young Adults': 'צעירים'
+                'Kids': 'suitable for kids',
+                'Teens': 'suitable for teens', 
+                'Adults': 'suitable for adults',
+                'Young Adults': 'suitable for young adults'
             }
             age_text = age_mapping.get(age_group, age_group)
-            intro_parts.append(f"שמתאימים ל{age_text}")
+            intro_parts.append(f"that are {age_text}")
         
         if params.get('year_range'):
             year_range = params['year_range']
             if len(year_range) == 2 and year_range[0] == year_range[1]:
-                intro_parts.append(f"משנת {year_range[0]}")
+                intro_parts.append(f"from {year_range[0]}")
             else:
-                intro_parts.append(f"מהשנים {year_range[0]}-{year_range[1]}")
+                intro_parts.append(f"from {year_range[0]}-{year_range[1]}")
         
         if params.get('country'):
-            intro_parts.append(f"מ{params['country']}")
+            intro_parts.append(f"from {params['country']}")
             
         if params.get('popular'):
             popularity_map = {
-                'high': 'פופולריים',
-                'medium': 'בעלי פופולריות בינונית',
-                'low': 'פחות מוכרים'
+                'high': 'popular',
+                'medium': 'moderately popular',
+                'low': 'lesser known'
             }
-            pop_text = popularity_map.get(params['popular'], 'פופולריים')
+            pop_text = popularity_map.get(params['popular'], 'popular')
             intro_parts.append(pop_text)
         
         # Build the introduction
         if intro_parts:
-            intro = "הנה רשימה של " + " ".join(intro_parts) + ":"
+            intro = "Here are " + " ".join(intro_parts) + ":"
         else:
-            intro = "הנה כמה המלצות לסרטים:"
+            intro = "Here are some movie recommendations:"
             
         return intro
 
