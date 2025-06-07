@@ -649,7 +649,7 @@ Examples:
             is_followup = self.is_followup_query(user_query, conversation_context) if conversation_context else False
 
             # Check if this is a recommendation question about existing results - FIRST PRIORITY
-            recommendation_patterns = ['which one', 'what do you recommend', 'recommend one', 'pick one', 'which do you', 'what you recommend']
+            recommendation_patterns = ['which one', 'what do you recommend', 'recommend one', 'pick one', 'which do you', 'what you recommend', 'all of them suit', 'suit for me', 'suitable for me', 'good for me', 'are they good', 'are these good']
             is_recommendation_question = any(pattern in user_query.lower() for pattern in recommendation_patterns)
             
             # Handle recommendation questions directly (works even when API is down)
