@@ -304,18 +304,36 @@ Return JSON format only."""
 
     def is_followup_query(self, query, context):
         """Check if the current query is a follow-up to previous conversation."""
+        query_lower = query.lower().strip()
+        
+        # First check for new topic indicators - if present, it's NOT a follow-up
+        new_topic_indicators = [
+            'recommend', 'suggest', 'what movies', 'find me', 'show me',
+            'i want', 'i need', 'looking for', 'search for', 'give me',
+            'can you recommend', 'any good', 'what are some', 'tell me about',
+            'help me find', 'i like', 'love', 'favorite', 'best movies'
+        ]
+        
+        for indicator in new_topic_indicators:
+            if indicator in query_lower:
+                print(f"DEBUG: Detected new topic indicator: '{indicator}' - NOT a follow-up")
+                return False
+        
+        # If query is very long (>6 words), it's likely a new request
+        if len(query_lower.split()) > 6:
+            print(f"DEBUG: Long query ({len(query_lower.split())} words) - likely new topic")
+            return False
+        
+        # Check for follow-up indicators
         followup_indicators = [
             'only', 'just', 'from', 'in', 'with', 'by', 'after', 'before',
             'newer', 'older', 'recent', 'latest', 'also', 'too', 'and',
             'but', 'however', 'except', 'without', 'plus', 'for'
         ]
         
-        query_lower = query.lower().strip()
-        
         # Short queries with follow-up indicators are likely follow-ups
         if len(query_lower.split()) <= 4:
             for indicator in followup_indicators:
-                # Check if query starts with the indicator OR contains it as a separate word
                 if (query_lower.startswith(indicator + ' ') or 
                     f' {indicator} ' in f' {query_lower} ' or 
                     query_lower == indicator or
