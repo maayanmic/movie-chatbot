@@ -429,6 +429,13 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                 
                 print(f"DEBUG: After description filtering: {len(filtered)} movies")
         
+        # Filter out inappropriate content for kids
+        if params.get('age_group') == 'Kids':
+            # Remove Stand-Up Comedy content which is not suitable for children
+            kids_filter = ~filtered['genre'].str.contains('Stand-Up Comedy', case=False, na=False)
+            filtered = filtered[kids_filter]
+            print(f"DEBUG: After removing inappropriate content for kids: {len(filtered)} movies")
+        
         # Apply weighted scoring and sort (70% popularity, 30% year)
         if not filtered.empty and 'popular' in filtered.columns and 'released' in filtered.columns:
             # Normalize popularity (0-5 scale) and year (assume 1900-2025 range)
