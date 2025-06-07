@@ -111,7 +111,18 @@ CONTEXT HANDLING: When analyzing the current query, consider the previous conver
 - Continuations (e.g., "and also" or "what about")
 - References to previous recommendations
 
-If the user's query seems to be refining or building upon a previous request, extract ALL relevant parameters including those from the context.
+CRITICAL: If the user's query seems to be refining or building upon a previous request, you MUST:
+1. Extract parameters from the CURRENT query
+2. Inherit relevant parameters from the PREVIOUS query context
+3. Combine them into a complete parameter set
+
+For example, if previous query was "movies for kids" and current is "only from 2019", you should return:
+- age_group: "Kids" (from previous context)
+- year_range: [2019, 2019] (from current query)
+
+EXAMPLES:
+Previous: "romantic movies" → Current: "from 2020" → Return: genre: "romantic", year_range: [2020, 2020]
+Previous: "action movies" → Current: "with Tom Cruise" → Return: genre: "action", actor: "Tom Cruise"
 
 GENRE VARIATIONS TO RECOGNIZE (including common typos):
 - Romance/Romantic: "romance", "romantic", "rommantic", "rommntic", "rommance", "romence", "romanc", "רומנטי", "רומנטית", "אהבה"
@@ -158,7 +169,8 @@ Return JSON format only."""
 
                 params = json.loads(response_text)
                 print(f"DEBUG: Gemini extracted parameters: {params}")
-                print(f"DEBUG: Full prompt sent to Gemini: {prompt[:500]}...")
+                if conversation_context:
+                    print(f"DEBUG: Context was provided - checking if parameters inherited correctly")
                 return params
             else:
                 return self.basic_parameter_extraction(user_query)
