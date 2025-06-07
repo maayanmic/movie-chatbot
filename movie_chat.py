@@ -624,7 +624,14 @@ Examples:
 Here are the most relevant movies from our database:
 {movies_text}
 
-Generate a helpful response in English. Start with a brief introduction, then list the movies with their details. Keep it conversational and informative."""
+Generate a BRIEF response in English. Use this EXACT format:
+
+Here are some movie recommendations for [criteria]:
+• Movie Title (Year) - Genre, Category
+• Movie Title (Year) - Genre, Category
+• Movie Title (Year) - Genre, Category
+
+Keep it SHORT and simple. No long explanations."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
