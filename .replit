@@ -26,7 +26,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python movie_chat.py"
+args = "python movie_chat_fixed.py"
 waitForPort = 5000
 
 [[ports]]

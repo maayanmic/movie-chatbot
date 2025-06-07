@@ -657,11 +657,17 @@ Examples:
         """Check if the query is asking for analysis rather than recommendations using Gemini."""
         try:
             if self.model:
-                prompt = f"""Is this asking for analysis of existing movies or searching for new movies?
+                prompt = f"""Is this question asking me to analyze/pick from movies I already showed, or search for completely new movies?
 
 Query: "{query}"
 
-Respond with just "ANALYSIS" or "SEARCH"."""
+Examples:
+- "which one you recommend?" = ANALYSIS (pick from shown movies)
+- "what's the best one?" = ANALYSIS (analyze shown movies)  
+- "about this movie?" = ANALYSIS (analyze specific movie)
+- "action movies" = SEARCH (find new movies)
+
+Answer: ANALYSIS or SEARCH"""
                 response = self.model.generate_content(prompt)
                 print(f"DEBUG: Analysis check - Query: '{query}' -> Gemini response: '{response.text}'")
                 return "ANALYSIS" in response.text.upper()
