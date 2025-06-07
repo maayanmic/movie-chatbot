@@ -662,8 +662,99 @@ Examples:
         return response_text
 
     def generate_response(self, filtered_movies, params, original_query):
-        """Generate a natural language response with simple movie list format."""
-        return self.generate_fallback_response(filtered_movies, params)
+        """Generate a natural language response - either analysis or movie list."""
+        # Check if this is an analytical question about the results
+        if self.is_analytical_question(original_query):
+            return self.generate_analytical_response(filtered_movies, original_query)
+        else:
+            return self.generate_fallback_response(filtered_movies, params)
+    
+    def is_analytical_question(self, query):
+        """Check if the query is asking for analysis rather than recommendations."""
+        query_lower = query.lower()
+        analytical_indicators = [
+            'which one is the best', 'which is better', 'what is the best',
+            'which movie is', 'which film is', 'are they all',
+            'how many', 'what rating', 'what popularity', 'rating',
+            'popularity', 'compare', 'difference', 'better than',
+            'highest rated', 'most popular', 'recommend one',
+            'what about', 'tell me about', 'describe'
+        ]
+        return any(indicator in query_lower for indicator in analytical_indicators)
+    
+    def generate_analytical_response(self, filtered_movies, query):
+        """Generate analytical response using Gemini."""
+        if filtered_movies.empty:
+            return "I don't have any movies to analyze based on your previous search."
+        
+        try:
+            if self.model:
+                # Prepare movie data for analysis
+                movies_data = []
+                for _, movie in filtered_movies.head(10).iterrows():  # Limit to 10 for analysis
+                    year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+                    genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+                    rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
+                    movies_data.append({
+                        'title': movie['name'],
+                        'year': year,
+                        'genre': genre,
+                        'popularity_rating': rating
+                    })
+                
+                # Create prompt for analysis
+                prompt = f"""Based on the user's question: "{query}"
+
+Here are the movies to analyze:
+{movies_data}
+
+Please provide a helpful, conversational analysis answering their specific question. Be informative but concise. Focus on the specific aspect they're asking about (ratings, popularity, recommendations, comparisons, etc.).
+
+If they're asking "which is best" - recommend based on highest popularity rating and explain why.
+If they're asking about ratings/popularity - explain the rating system and compare the movies.
+If they're asking for details about specific movies - provide relevant information.
+
+Keep the response natural and helpful."""
+
+                response = self.model.generate_content(prompt)
+                return response.text.strip()
+            else:
+                return self.generate_basic_analytical_response(filtered_movies, query)
+                
+        except Exception as e:
+            return self.generate_basic_analytical_response(filtered_movies, query)
+    
+    def generate_basic_analytical_response(self, filtered_movies, query):
+        """Generate basic analytical response without AI."""
+        query_lower = query.lower()
+        
+        if 'best' in query_lower or 'recommend' in query_lower:
+            # Find highest rated movie
+            best_movie = filtered_movies.loc[filtered_movies['popular'].idxmax()]
+            year = int(best_movie['released']) if pd.notna(best_movie['released']) else 'Unknown'
+            return f"Based on popularity ratings, I'd recommend \"{best_movie['name']}\" ({year}) with a rating of {best_movie['popular']}/5."
+        
+        elif 'rating' in query_lower or 'popularity' in query_lower:
+            # Analyze ratings
+            ratings = filtered_movies['popular'].value_counts().sort_index(ascending=False)
+            rating_summary = []
+            for rating, count in ratings.head(3).items():
+                rating_summary.append(f"{count} movie(s) with {rating}/5 rating")
+            
+            return f"Here's the rating breakdown: {', '.join(rating_summary)}. The movies are rated on a scale of 1-5 for popularity."
+        
+        elif 'how many' in query_lower:
+            return f"I found {len(filtered_movies)} movies matching your criteria."
+        
+        else:
+            # Default analytical response
+            if len(filtered_movies) == 1:
+                movie = filtered_movies.iloc[0]
+                year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+                return f"\"{movie['name']}\" ({year}) has a popularity rating of {movie['popular']}/5 and belongs to {movie['genre']} genre."
+            else:
+                avg_rating = filtered_movies['popular'].mean()
+                return f"These {len(filtered_movies)} movies have an average popularity rating of {avg_rating:.1f}/5."
 
     def generate_fallback_response(self, filtered_movies, params=None):
         """Generate a basic response without AI."""
