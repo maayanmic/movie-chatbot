@@ -842,12 +842,12 @@ Be friendly but CONCISE. Keep it short and helpful."""
             year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
             rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
             genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
-            return f"Looking at \"{movie['name']}\" ({year}) - it has a popularity rating of {rating}/5 in the {genre} category."
+            return f"Looking at \"{movie['name']}\" ({year}) - it has a popularity rating of {rating} in the {genre} category."
 
         # For multiple movies, provide general statistics
         total_movies = len(filtered_movies)
         avg_rating = filtered_movies['popular'].mean() if not filtered_movies['popular'].isnull().all() else 0
-        return f"I found {total_movies} movies with an average popularity rating of {avg_rating:.1f}/5. Let me know what specific aspect you'd like to know more about."
+        return f"I found {total_movies} movies with an average popularity rating of {avg_rating:.1f}. Let me know what specific aspect you'd like to know more about."
 
     def generate_fallback_response(self, filtered_movies, params=None):
         """Generate a basic response without AI."""
