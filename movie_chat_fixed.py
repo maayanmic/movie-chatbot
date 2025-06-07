@@ -152,18 +152,43 @@ Respond in JSON format only."""
                         params['age_group'] = 'Kids'
                 break
 
-        # Use algorithmic approach - check if query contains terms that appear in actual data
-        if hasattr(self, 'movies_df') and not self.movies_df.empty:
-            # Check for age-related terms in the query
-            if any(word in query_lower for word in ['kids', 'children', 'child', 'family']):
+        # Kids/Family detection
+        kids_indicators = [
+            'for kids', 'for children', 'suitable for kids', 'suit to kids',
+            'that will suit', 'appropriate for kids', 'family friendly',
+            'children can watch', 'kids can watch', 'child friendly'
+        ]
+
+        for indicator in kids_indicators:
+            if indicator in query_lower:
                 params['age_group'] = 'Kids'
-            
-            # Check for genre terms by matching against actual genres in dataset
-            unique_genres = self.movies_df['genre'].dropna().unique()
+                break
+
+        # Genre detection using algorithmic approach - check against actual data
+        if hasattr(self, 'movies') and not self.movies.empty:
+            unique_genres = self.movies['genre'].dropna().str.lower().unique()
             for genre in unique_genres:
-                if len(genre) > 3 and genre.lower() in query_lower:
-                    params['genre'] = genre
+                if len(genre) > 3 and genre in query_lower:
+                    params['genre'] = genre.title()
                     break
+        
+        # Year detection
+        year_patterns = [
+            r'from (\d{4})', r'since (\d{4})', r'after (\d{4})',
+            r'in (\d{4})', r'(\d{4}) movies', r'released in (\d{4})'
+        ]
+        for pattern in year_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                year = int(match.group(1))
+                params['year_range'] = [year, year]
+                break
+        
+        # Popular/rating detection
+        if any(word in query_lower for word in ['popular', 'top', 'best', 'highest rated']):
+            params['popular'] = 'high'
+        elif any(word in query_lower for word in ['bad', 'worst', 'lowest rated']):
+            params['popular'] = 'low'
 
         return params
     
@@ -252,10 +277,10 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
 
     def filter_movies(self, params):
         """Filter movies based on extracted parameters using algorithmic approach."""
-        print(f"DEBUG: Starting with {len(self.movies_df)} movies")
+        print(f"DEBUG: Starting with {len(self.movies)} movies")
         print(f"DEBUG: Parameters: {params}")
         
-        filtered = self.movies_df.copy()
+        filtered = self.movies.copy()
         
         # Genre filtering - map user genre to actual genre values in dataset
         if params.get('genre'):
@@ -299,8 +324,78 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
             filtered = filtered[genre_filter]
             print(f"DEBUG: After genre filtering: {len(filtered)} movies")
         
+        # Year range filtering
+        if params.get('year_range'):
+            year_range = params['year_range']
+            print(f"DEBUG: Filtering by year range: {year_range}")
+            
+            if len(year_range) == 2:
+                min_year, max_year = year_range
+                year_mask = (
+                    (filtered['released'] >= min_year) & 
+                    (filtered['released'] <= max_year)
+                )
+                filtered = filtered[year_mask]
+                print(f"DEBUG: After year filtering: {len(filtered)} movies")
+        
+        # Popularity filtering
+        if params.get('popular'):
+            popularity = params['popular']
+            print(f"DEBUG: Filtering by popularity: {popularity}")
+            
+            if popularity == 'high':
+                # Top 30% of movies by rating
+                threshold = filtered['popular'].quantile(0.7)
+                filtered = filtered[filtered['popular'] >= threshold]
+            elif popularity == 'low':
+                # Bottom 30% of movies by rating
+                threshold = filtered['popular'].quantile(0.3)
+                filtered = filtered[filtered['popular'] <= threshold]
+            elif isinstance(popularity, (int, float)):
+                # Specific rating
+                filtered = filtered[filtered['popular'] >= popularity]
+                
+            print(f"DEBUG: After popularity filtering: {len(filtered)} movies")
+        
+        # Actor filtering
+        if params.get('actor'):
+            actor_name = params['actor'].lower()
+            print(f"DEBUG: Filtering by actor: {actor_name}")
+            
+            # Search in relevant columns that might contain actor names
+            if 'actors' in filtered.columns:
+                actor_mask = filtered['actors'].str.lower().str.contains(actor_name, na=False)
+                filtered = filtered[actor_mask]
+            elif 'cast' in filtered.columns:
+                actor_mask = filtered['cast'].str.lower().str.contains(actor_name, na=False)
+                filtered = filtered[actor_mask]
+            
+            print(f"DEBUG: After actor filtering: {len(filtered)} movies")
+        
+        # Director filtering
+        if params.get('director'):
+            director_name = params['director'].lower()
+            print(f"DEBUG: Filtering by director: {director_name}")
+            
+            if 'director' in filtered.columns:
+                director_mask = filtered['director'].str.lower().str.contains(director_name, na=False)
+                filtered = filtered[director_mask]
+            
+            print(f"DEBUG: After director filtering: {len(filtered)} movies")
+        
+        # Country filtering
+        if params.get('country'):
+            country_name = params['country'].lower()
+            print(f"DEBUG: Filtering by country: {country_name}")
+            
+            if 'country' in filtered.columns:
+                country_mask = filtered['country'].str.lower().str.contains(country_name, na=False)
+                filtered = filtered[country_mask]
+            
+            print(f"DEBUG: After country filtering: {len(filtered)} movies")
+        
         # Description keywords filtering - algorithmic search through actual data
-        elif params.get('description_keywords'):
+        if params.get('description_keywords'):
             keywords = params['description_keywords']
             print(f"DEBUG: Filtering by description keywords: {keywords}")
             
