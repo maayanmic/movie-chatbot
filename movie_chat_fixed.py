@@ -198,14 +198,11 @@ Respond in JSON format only."""
                 if conversation_context:
                     context_info = f"\nConversation history:\n{conversation_context}\n"
                 
-                prompt = f"""You are a movie recommendation chatbot. The user is asking: "{query}"
-{context_info}
-Movies available for analysis:
-{movies_data}
+                prompt = f"""User asks: "{query}"
 
-If the user asks about "this movie" or similar, refer to the specific movie you mentioned in the conversation history.
+Movies: {movies_data}
 
-Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCISE."""
+Answer in 1-2 sentences max. Be direct and helpful."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
@@ -263,33 +260,18 @@ Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCI
             rating = movie['popular'] if pd.notna(movie['popular']) else 'N/A'
             print(f"  {i}. {movie['name']} - Popularity: {rating}")
         
-        # Generate response
+        # Generate response - always return formatted movie list
         if filtered_movies.empty:
             return "I couldn't find any movies matching your criteria. Try a different search!"
         
-        # Use AI to generate response if available
-        try:
-            if self.model:
-                movies_data = []
-                for _, movie in filtered_movies.head(6).iterrows():
-                    year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
-                    genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
-                    rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
-                    movies_data.append(f"{movie['name']} ({year}) - {genre}")
-                
-                prompt = f"""List these movies in a friendly way. Keep it short and simple.
-
-Movies: {movies_data}
-
-Format as a bullet list. Be conversational but brief."""
-                
-                response = self.model.generate_content(prompt)
-                return response.text.strip()
-            else:
-                return self.generate_fallback_response(filtered_movies, params)
-                
-        except Exception as e:
-            return self.generate_fallback_response(filtered_movies, params)
+        # Generate formatted movie list
+        movies_list = []
+        for _, movie in filtered_movies.head(6).iterrows():
+            year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+            genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+            movies_list.append(f"• {movie['name']} ({year}) - {genre}")
+        
+        return "Here are some movie recommendations:\n" + "\n".join(movies_list)
 
 def initialize_system():
     """Initialize the movie recommendation system."""
