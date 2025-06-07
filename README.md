@@ -10,6 +10,8 @@
 pip install flask pandas google-generativeai
 ```
 
+**חשוב**: ודאי שכל החבילות מותקנות לפני הרצת הקוד.
+
 ## הגדרת מפתח API
 הגדירי משתנה סביבה עם מפתח Gemini:
 
