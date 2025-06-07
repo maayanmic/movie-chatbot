@@ -376,8 +376,20 @@ Examples:
             # Enhanced fallback when Gemini is unavailable
             query_lower = query.lower().strip()
             
-            # Clear new topic indicators
-            if any(phrase in query_lower for phrase in ['what movies', 'recommend', 'suggest', 'i want movies', 'i need']):
+            # Clear new topic indicators - complete requests for movies
+            new_topic_phrases = [
+                'what movies', 'which movies', 'can you give me', 'give me', 'can you recommend', 
+                'recommend', 'suggest', 'i want movies', 'i need movies', 'i want', 'i need',
+                'find me', 'show me', 'looking for', 'help me find'
+            ]
+            
+            # Check for genre + movies combinations that indicate new requests
+            genre_requests = [
+                'drama movies', 'action movies', 'comedy movies', 'horror movies',
+                'romantic movies', 'sci-fi movies', 'fantasy movies', 'thriller movies'
+            ]
+            
+            if any(phrase in query_lower for phrase in new_topic_phrases + genre_requests):
                 return False
             
             # Strong follow-up indicators (regardless of length)
