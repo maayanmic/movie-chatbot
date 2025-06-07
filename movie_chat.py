@@ -670,20 +670,47 @@ Examples:
             return self.generate_fallback_response(filtered_movies, params)
     
     def is_analytical_question(self, query):
-        """Check if the query is asking for analysis rather than recommendations."""
-        query_lower = query.lower()
-        analytical_indicators = [
-            'which one is the best', 'which is better', 'what is the best',
-            'which movie is', 'which film is', 'are they all', 'they are all',
-            'how many', 'what rating', 'what popularity', 'rating',
-            'popularity', 'compare', 'difference', 'better than',
-            'highest rated', 'most popular', 'recommend one', 'pick one',
-            'what about', 'tell me about', 'describe', 'which one you recommend',
-            'which do you recommend', 'what do you recommend', 'your recommendation',
-            'suit for', 'suitable for', 'good for', 'appropriate for',
-            'which one', 'pick', 'choose', 'suggest one'
-        ]
-        return any(indicator in query_lower for indicator in analytical_indicators)
+        """Check if the query is asking for analysis rather than recommendations using Gemini."""
+        try:
+            if self.model:
+                prompt = f"""Is this query asking for analysis/conversation about existing results, or asking for new movie search?
+
+Query: "{query}"
+
+Respond with just "ANALYSIS" or "SEARCH".
+
+ANALYSIS examples:
+- "which one is the best?"
+- "pick one for me"
+- "are they suitable for kids?"
+- "what about the ratings?"
+- "tell me more about..."
+- "which do you recommend?"
+
+SEARCH examples:
+- "show me action movies"
+- "find comedy from 2020"
+- "I want romantic films"
+- "get me thriller movies"
+"""
+                response = self.model.generate_content(prompt)
+                return "ANALYSIS" in response.text.upper()
+            else:
+                # Basic fallback using general patterns
+                query_lower = query.lower()
+                # Check for question words that typically indicate analysis
+                question_patterns = ['which', 'what', 'how', 'are they', 'is it', 'tell me', 'pick', 'choose', 'recommend', 'suggest']
+                # Check for analysis context words
+                analysis_context = ['one', 'best', 'better', 'rating', 'suitable', 'good', 'about']
+                
+                has_question = any(pattern in query_lower for pattern in question_patterns)
+                has_context = any(context in query_lower for context in analysis_context)
+                
+                return has_question and has_context
+        except Exception as e:
+            # Basic fallback
+            query_lower = query.lower()
+            return any(word in query_lower for word in ['which', 'pick', 'recommend', 'best', 'rating', 'suitable'])
     
     def generate_analytical_response(self, filtered_movies, query):
         """Generate analytical response using Gemini."""
@@ -730,54 +757,22 @@ Be friendly, helpful, and specific. Don't just list movies - have a conversation
             return self.generate_basic_analytical_response(filtered_movies, query)
     
     def generate_basic_analytical_response(self, filtered_movies, query):
-        """Generate basic analytical response without AI."""
-        query_lower = query.lower()
+        """Generate basic analytical response without AI - simple fallback."""
+        if len(filtered_movies) == 0:
+            return "I don't have any movies to analyze based on your search."
         
-        if 'pick' in query_lower or 'recommend' in query_lower or 'which one' in query_lower:
-            # Pick the highest rated movie and explain why
-            best_movie = filtered_movies.loc[filtered_movies['popular'].idxmax()]
-            year = int(best_movie['released']) if pd.notna(best_movie['released']) else 'Unknown'
-            genre = best_movie['genre'] if pd.notna(best_movie['genre']) else 'Various genres'
-            return f"I'd recommend \"{best_movie['name']}\" ({year}). It has the highest popularity rating of {best_movie['popular']}/5 and it's a great {genre.lower()} film that many viewers have enjoyed."
+        # Very basic response that doesn't rely on specific keywords
+        if len(filtered_movies) == 1:
+            movie = filtered_movies.iloc[0]
+            year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+            rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
+            genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+            return f"Looking at \"{movie['name']}\" ({year}) - it has a popularity rating of {rating}/5 in the {genre} category."
         
-        elif 'suit' in query_lower or 'suitable' in query_lower or 'appropriate' in query_lower:
-            # Check if movies are suitable for kids
-            kids_genres = ['children', 'family', 'animation']
-            suitable_count = 0
-            for _, movie in filtered_movies.iterrows():
-                genre = str(movie['genre']).lower() if pd.notna(movie['genre']) else ''
-                if any(kid_genre in genre for kid_genre in kids_genres):
-                    suitable_count += 1
-            
-            if suitable_count == len(filtered_movies):
-                return "Yes, all of these movies are suitable for kids! They're all family-friendly films."
-            elif suitable_count > 0:
-                return f"Most of them are suitable for kids - {suitable_count} out of {len(filtered_movies)} movies are family-friendly."
-            else:
-                return "Not all of these movies are specifically designed for kids. Some might be more suitable for older audiences."
-        
-        elif 'rating' in query_lower or 'popularity' in query_lower:
-            # Analyze ratings
-            ratings = filtered_movies['popular'].value_counts().sort_index(ascending=False)
-            if len(ratings) == 1:
-                rating = ratings.index[0]
-                return f"Yes, all {len(filtered_movies)} movies have the same popularity rating of {rating}/5! They're all equally popular."
-            else:
-                highest_rating = ratings.index[0]
-                return f"The ratings vary - the highest is {highest_rating}/5, and there are different popularity levels among these movies."
-        
-        elif 'how many' in query_lower:
-            return f"I found {len(filtered_movies)} movies matching your criteria."
-        
-        else:
-            # Default analytical response
-            if len(filtered_movies) == 1:
-                movie = filtered_movies.iloc[0]
-                year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
-                return f"\"{movie['name']}\" ({year}) has a popularity rating of {movie['popular']}/5 and belongs to {movie['genre']} genre."
-            else:
-                avg_rating = filtered_movies['popular'].mean()
-                return f"These {len(filtered_movies)} movies have an average popularity rating of {avg_rating:.1f}/5."
+        # For multiple movies, provide general statistics
+        total_movies = len(filtered_movies)
+        avg_rating = filtered_movies['popular'].mean() if not filtered_movies['popular'].isnull().all() else 0
+        return f"I found {total_movies} movies with an average popularity rating of {avg_rating:.1f}/5. Let me know what specific aspect you'd like to know more about."
 
     def generate_fallback_response(self, filtered_movies, params=None):
         """Generate a basic response without AI."""
