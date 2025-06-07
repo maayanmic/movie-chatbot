@@ -335,6 +335,12 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                     if re.search(pattern, query_lower):
                         return True
                 
+                # Check for genre words that indicate followup
+                genre_words = ['romantic', 'romance', 'comedy', 'action', 'drama', 'horror', 'thriller', 'sci-fi', 'fantasy', 'documentary', 'animation']
+                for genre_word in genre_words:
+                    if genre_word in query_lower:
+                        return True
+                
                 # Short queries with weak indicators
                 if len(query_lower.split()) <= 4:
                     weak_indicators = ['from', 'in', 'only', 'just', 'for', 'with']
