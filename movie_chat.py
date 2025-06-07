@@ -173,12 +173,13 @@ Return JSON format only."""
                     print(f"DEBUG: Context was provided - checking if parameters inherited correctly")
                 return params
             else:
-                return self.basic_parameter_extraction(user_query)
+                return self.basic_parameter_extraction(user_query, conversation_context)
 
         except Exception as e:
-            return self.basic_parameter_extraction(user_query)
+            print(f"DEBUG: Gemini failed, using fallback: {str(e)}")
+            return self.basic_parameter_extraction(user_query, conversation_context)
 
-    def basic_parameter_extraction(self, query):
+    def basic_parameter_extraction(self, query, conversation_context=""):
         """Basic fallback parameter extraction without AI."""
         params = {
             'age_group': None,
@@ -191,6 +192,12 @@ Return JSON format only."""
             'description_keywords': None,
             'intent': 'recommend'
         }
+        
+        # Check if this is a follow-up query based on conversation context
+        if conversation_context and self.is_followup_query(query, conversation_context):
+            print("DEBUG: Detected follow-up query, extracting context parameters")
+            context_params = self.extract_context_parameters(conversation_context)
+            params.update(context_params)
 
         # Genre detection using fuzzy matching
         genre_keywords = {
@@ -243,6 +250,63 @@ Return JSON format only."""
         if description_keywords:
             params['description_keywords'] = description_keywords[:7]  # Limit to 7 terms
 
+        # Extract year from current query if present
+        import re
+        year_match = re.search(r'\b(19|20)(\d{2})\b', query)
+        if year_match:
+            year = int(year_match.group(0))
+            params['year_range'] = [year, year]
+            print(f"DEBUG: Extracted year {year} from query")
+
+        return params
+
+    def is_followup_query(self, query, context):
+        """Check if the current query is a follow-up to previous conversation."""
+        followup_indicators = [
+            'only', 'just', 'from', 'in', 'with', 'by', 'after', 'before',
+            'newer', 'older', 'recent', 'latest', 'also', 'too', 'and',
+            'but', 'however', 'except', 'without', 'plus'
+        ]
+        
+        query_lower = query.lower().strip()
+        
+        # Short queries with time/year indicators are likely follow-ups
+        if len(query_lower.split()) <= 4:
+            for indicator in followup_indicators:
+                if query_lower.startswith(indicator):
+                    return True
+        
+        # Check for year patterns (2019, 2020, etc.)
+        import re
+        if re.search(r'\b(19|20)\d{2}\b', query):
+            return True
+            
+        return False
+
+    def extract_context_parameters(self, context):
+        """Extract relevant parameters from conversation context."""
+        params = {}
+        
+        # Look for kids/children mentions in context
+        if any(word in context.lower() for word in ['kids', 'children', 'child', 'family']):
+            params['age_group'] = 'Kids'
+            
+        # Look for genre mentions in context  
+        genre_patterns = {
+            'romance': ['romantic', 'romance', 'love'],
+            'action': ['action'],
+            'comedy': ['comedy', 'funny', 'comedies'],
+            'drama': ['drama', 'dramas'],
+            'horror': ['horror', 'scary'],
+            'thriller': ['thriller', 'suspense']
+        }
+        
+        context_lower = context.lower()
+        for genre, keywords in genre_patterns.items():
+            if any(keyword in context_lower for keyword in keywords):
+                params['genre'] = genre.title()
+                break
+                
         return params
 
     def filter_movies(self, params):
