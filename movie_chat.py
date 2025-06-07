@@ -154,6 +154,13 @@ Extract the following information from the user's query and return as JSON:
 - description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"]) - if no plot description, use null
 - intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
 
+SPECIAL HANDLING FOR MOVIE REFERENCES:
+If the user asks about "this movie", "that movie", "the movie", or similar references without naming it specifically, check the conversation context for any movie titles mentioned in previous assistant responses. If found, set description_keywords to search for that specific movie title.
+
+Examples:
+- Context shows assistant mentioned "My Octopus Teacher" → User asks "about what this movie?" → description_keywords: ["My Octopus Teacher"]
+- Context shows assistant mentioned "Charming" → User asks "tell me about that movie" → description_keywords: ["Charming"]
+
 Return JSON format only."""
 
         try:
