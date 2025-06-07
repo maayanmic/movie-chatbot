@@ -314,7 +314,14 @@ Return JSON format only."""
                     matches = filtered[keyword_mask]
                     print(f"DEBUG: Found {len(matches)} movies with '{clean_keyword}'")
                     if clean_keyword == 'missing' and len(matches) > 0:
-                        print(f"DEBUG: Movies with 'missing': {matches['name'].head(3).tolist()}")
+                        print(f"DEBUG: Movies with 'missing': {matches['name'].head(5).tolist()}")
+                        # Check if 706 is in the dataset
+                        if '706' in filtered['name'].values:
+                            print("DEBUG: Movie 706 exists in dataset")
+                            desc_706 = filtered[filtered['name'] == '706']['description'].iloc[0]
+                            print(f"DEBUG: 706 description: {desc_706[:100]}...")
+                        else:
+                            print("DEBUG: Movie 706 NOT found in dataset")
                     filtered.loc[keyword_mask, 'keyword_score'] += 1
 
             keyword_filtered = filtered[filtered['keyword_score'] > 0]
