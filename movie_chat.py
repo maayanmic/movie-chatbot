@@ -99,6 +99,7 @@ class MovieRecommender:
     def extract_query_parameters(self, user_query, conversation_context=""):
         """Use Gemini to extract parameters from natural language query."""
         print(f"DEBUG: Processing query: {user_query}")
+        print(f"DEBUG: Conversation context: {conversation_context[:200]}...")
 
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
@@ -157,6 +158,7 @@ Return JSON format only."""
 
                 params = json.loads(response_text)
                 print(f"DEBUG: Gemini extracted parameters: {params}")
+                print(f"DEBUG: Full prompt sent to Gemini: {prompt[:500]}...")
                 return params
             else:
                 return self.basic_parameter_extraction(user_query)
