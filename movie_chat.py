@@ -194,10 +194,15 @@ Return JSON format only."""
         }
         
         # Check if this is a follow-up query based on conversation context
-        if conversation_context and self.is_followup_query(query, conversation_context):
-            print("DEBUG: Detected follow-up query, extracting context parameters")
-            context_params = self.extract_context_parameters(conversation_context)
-            params.update(context_params)
+        if conversation_context:
+            print(f"DEBUG: Checking if query '{query}' is follow-up with context")
+            if self.is_followup_query(query, conversation_context):
+                print("DEBUG: Detected follow-up query, extracting context parameters")
+                context_params = self.extract_context_parameters(conversation_context)
+                params.update(context_params)
+                print(f"DEBUG: Updated params with context: {params}")
+            else:
+                print("DEBUG: Not detected as follow-up query")
         
         # Extract additional parameters from the current query itself 
         # (beyond what was extracted from context)
@@ -307,12 +312,16 @@ Return JSON format only."""
         ]
         
         query_lower = query.lower().strip()
+        print(f"DEBUG: Checking if '{query_lower}' is follow-up query")
         
         # Short queries with follow-up indicators are likely follow-ups
         if len(query_lower.split()) <= 4:
             for indicator in followup_indicators:
                 # Check if query starts with the indicator OR contains it as a separate word
-                if query_lower.startswith(indicator + ' ') or f' {indicator} ' in f' {query_lower} ' or query_lower == indicator:
+                if (query_lower.startswith(indicator + ' ') or 
+                    f' {indicator} ' in f' {query_lower} ' or 
+                    query_lower == indicator or
+                    query_lower.startswith(indicator)):
                     print(f"DEBUG: Found follow-up indicator '{indicator}' in query '{query}'")
                     return True
         
