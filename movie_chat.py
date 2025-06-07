@@ -306,90 +306,34 @@ Return JSON format only."""
         """Check if the current query is a follow-up to previous conversation using Gemini."""
         if not context.strip():
             return False
-            
-        try:
-            # Use Gemini to intelligently determine if this is a follow-up
-            prompt = f"""
-            Analyze if the current user query is a follow-up to the previous conversation or a new topic.
-
-            Previous conversation context:
-            {context}
-
-            Current user query: "{query}"
-
-            Return ONLY a JSON object with:
-            {{
-                "is_followup": true/false,
-                "reasoning": "brief explanation"
-            }}
-
-            Examples:
-            - "only romantic" after discussing kids movies → {{"is_followup": true, "reasoning": "refining previous search"}}
-            - "from 2019" after movie recommendations → {{"is_followup": true, "reasoning": "adding year filter"}}
-            - "What action movies do you recommend?" → {{"is_followup": false, "reasoning": "new topic request"}}
-            - "I want comedy movies" → {{"is_followup": false, "reasoning": "completely new request"}}
-            """
-            
-            response = self.model.generate_content(prompt)
-            response_text = response.text.strip()
-            
-            # Clean JSON response
-            if response_text.startswith('```json'):
-                response_text = response_text[7:-3].strip()
-            elif response_text.startswith('```'):
-                response_text = response_text[3:-3].strip()
-            
-            import json
-            result = json.loads(response_text)
-            is_followup = result.get('is_followup', False)
-            reasoning = result.get('reasoning', '')
-            
-            print(f"DEBUG: Gemini followup analysis - Is followup: {is_followup}, Reasoning: {reasoning}")
-            return is_followup
-            
-        except Exception as e:
-            print(f"DEBUG: Gemini followup detection failed: {str(e)}, using fallback")
-            # Fallback to simple heuristics
-            return self._fallback_followup_detection(query)
-    
-    def _fallback_followup_detection(self, query):
-        """Simple fallback followup detection when Gemini fails."""
-        query_lower = query.lower().strip()
         
-        # Clear new topic indicators - if present, it's NOT a follow-up
-        new_topic_words = ['recommend', 'suggest', 'what movies', 'i want', 'i need', 'looking for', 'show me', 'find me']
-        for word in new_topic_words:
-            if word in query_lower:
-                return False
+        # Always use general algorithmic approach - check if query is short and simple
+        # This indicates it's likely a follow-up rather than a complete new request
+        query_words = query.strip().split()
         
-        # Very short queries with common follow-up words
-        simple_followup_indicators = ['only', 'just', 'from', 'and', 'but', 'also', 'with', 'by']
-        if len(query_lower.split()) <= 3:
-            for indicator in simple_followup_indicators:
-                if query_lower.startswith(indicator + ' '):
-                    return True
+        # Very long queries (>7 words) are usually new complete requests
+        if len(query_words) > 7:
+            print(f"DEBUG: Long query ({len(query_words)} words) - likely new topic")
+            return False
         
-        # Year patterns
-        import re
-        if re.search(r'\b(19|20)\d{2}\b', query):
-            return True
-        
-        # Questions about current results (indicating follow-up)
-        followup_questions = [
-            'there is more', 'any more', 'more options', 'show more', 'what else',
-            'anything else', 'other options', 'more movies', 'is there more',
-            'got more', 'have more', 'see more', 'more results'
+        # Use semantic analysis approach: if query contains complete movie request patterns, it's new
+        complete_request_patterns = [
+            'what', 'which', 'can you', 'please', 'help me', 'find me', 'show me',
+            'recommend', 'suggest', 'i want', 'i need', 'looking for'
         ]
         
-        for question in followup_questions:
-            if question in query_lower:
-                return True
+        query_lower = query.lower()
+        has_complete_pattern = any(pattern in query_lower for pattern in complete_request_patterns)
         
-        # Very short queries are likely follow-ups if they don't contain new topic words
-        if len(query_lower.split()) <= 2:
-            return True
-            
-        return False
+        if has_complete_pattern and len(query_words) > 3:
+            print(f"DEBUG: Complete request pattern detected - new topic")
+            return False
+        
+        # For short queries without complete patterns, assume follow-up
+        # This is the general algorithmic approach - short, incomplete queries are refinements
+        print(f"DEBUG: Short query without complete pattern - likely follow-up")
+        return True
+
 
     def extract_context_parameters(self, context):
         """Extract relevant parameters from conversation context."""
