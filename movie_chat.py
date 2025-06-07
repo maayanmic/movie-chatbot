@@ -194,6 +194,7 @@ Return JSON format only."""
         }
         
         # Check if this is a follow-up query based on conversation context
+        print(f"DEBUG: Context received: '{conversation_context[:100] if conversation_context else 'None'}'")
         if conversation_context:
             print(f"DEBUG: Checking if query '{query}' is follow-up with context")
             if self.is_followup_query(query, conversation_context):
@@ -203,6 +204,8 @@ Return JSON format only."""
                 print(f"DEBUG: Updated params with context: {params}")
             else:
                 print("DEBUG: Not detected as follow-up query")
+        else:
+            print("DEBUG: No conversation context available")
         
         # Extract additional parameters from the current query itself 
         # (beyond what was extracted from context)
@@ -662,9 +665,15 @@ def setup_routes():
 
     def get_user_id():
         """Get or create user session ID"""
-        if 'user_id' not in session:
-            session['user_id'] = str(uuid.uuid4())
-        return session['user_id']
+        # Use a fixed user ID for API testing, or session-based for web interface
+        if request.headers.get('Content-Type') == 'application/json':
+            # For API requests, use a fixed user ID to maintain conversation
+            return 'api_user'
+        else:
+            # For web interface, use session-based user ID
+            if 'user_id' not in session:
+                session['user_id'] = str(uuid.uuid4())
+            return session['user_id']
 
     def save_conversation(user_id, user_query, response):
         """Save conversation to memory"""
@@ -684,8 +693,14 @@ def setup_routes():
     def get_conversation_context(user_id):
         """Get recent conversation context for user"""
         if user_id not in conversation_memory:
+            print(f"DEBUG: User {user_id} not in conversation memory")
             return ""
 
+        if not conversation_memory[user_id]:
+            print(f"DEBUG: No conversations for user {user_id}")
+            return ""
+
+        print(f"DEBUG: Found {len(conversation_memory[user_id])} conversations for user {user_id}")
         context = "Previous conversation:\n"
         for conv in conversation_memory[user_id][-3:]:  # Last 3 conversations
             context += f"User: {conv['user_query']}\n"
