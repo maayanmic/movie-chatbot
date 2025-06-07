@@ -11,7 +11,7 @@ print(f"API Key exists: {bool(os.environ.get('GEMINI_API_KEY'))}")
 print(f"API Key starts with: {os.environ.get('GEMINI_API_KEY', 'NOT_FOUND')[:10]}...")
 
 # Global variables
-app = Flask(__name__, static_folder='.', template_folder='.')
+app = Flask(__name__, static_folder='.', template_folder='templates')
 app.secret_key = 'movie_recommender_secret_key_2024'
 conversation_memory = {}
 recommender = None
