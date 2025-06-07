@@ -265,7 +265,7 @@ Return JSON format only."""
         followup_indicators = [
             'only', 'just', 'from', 'in', 'with', 'by', 'after', 'before',
             'newer', 'older', 'recent', 'latest', 'also', 'too', 'and',
-            'but', 'however', 'except', 'without', 'plus'
+            'but', 'however', 'except', 'without', 'plus', 'for'
         ]
         
         query_lower = query.lower().strip()
@@ -293,7 +293,7 @@ Return JSON format only."""
             
         # Look for genre mentions in context  
         genre_patterns = {
-            'romance': ['romantic', 'romance', 'love'],
+            'romance': ['romantic', 'romance', 'love', 'romantic movies'],
             'action': ['action'],
             'comedy': ['comedy', 'funny', 'comedies'],
             'drama': ['drama', 'dramas'],
@@ -306,6 +306,20 @@ Return JSON format only."""
             if any(keyword in context_lower for keyword in keywords):
                 params['genre'] = genre.title()
                 break
+        
+        # Extract the most recent genre from the last user query in context
+        lines = context.split('\n')
+        last_user_query = None
+        for line in lines:
+            if line.startswith('User: '):
+                last_user_query = line[6:].lower()  # Remove 'User: ' prefix
+        
+        if last_user_query:
+            for genre, keywords in genre_patterns.items():
+                if any(keyword in last_user_query for keyword in keywords):
+                    params['genre'] = genre.title()
+                    print(f"DEBUG: Extracted genre '{genre.title()}' from last query: {last_user_query}")
+                    break
                 
         return params
 
