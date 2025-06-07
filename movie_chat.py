@@ -602,6 +602,17 @@ Examples:
             # Check if this is a follow-up query or new topic
             is_followup = self.is_followup_query(user_query, conversation_context) if conversation_context else False
 
+            # Check if this is a recommendation question about existing results
+            recommendation_patterns = ['which one', 'what do you recommend', 'recommend one', 'pick one', 'which do you']
+            is_recommendation_question = any(pattern in user_query.lower() for pattern in recommendation_patterns)
+            
+            if is_followup and is_recommendation_question and conversation_context:
+                # This is asking for recommendation from existing results - use analytical response
+                context_params = self.extract_context_parameters(conversation_context)
+                filtered_movies = self.filter_movies(context_params)
+                if not filtered_movies.empty:
+                    return self.generate_analytical_response(filtered_movies, user_query)
+
             # Extract parameters from query
             # Only pass context if it's a follow-up query
             context_to_use = conversation_context if is_followup else ""
