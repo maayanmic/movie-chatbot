@@ -231,6 +231,15 @@ Return JSON format only."""
                     elif age_unit == 'year' and age_num <= 12:
                         params['age_group'] = 'Kids'
                         print(f"DEBUG: Detected child age ({age_num} {age_unit}), setting to Kids")
+                    elif age_unit == 'year' and 13 <= age_num <= 17:
+                        params['age_group'] = 'Teens'
+                        print(f"DEBUG: Detected teen age ({age_num} {age_unit}), setting to Teens")
+                    elif age_unit == 'year' and 18 <= age_num <= 25:
+                        params['age_group'] = 'Young Adults'
+                        print(f"DEBUG: Detected young adult age ({age_num} {age_unit}), setting to Young Adults")
+                    elif age_unit == 'year' and age_num >= 26:
+                        params['age_group'] = 'Adults'
+                        print(f"DEBUG: Detected adult age ({age_num} {age_unit}), setting to Adults")
                 break
 
         # Kids/Family detection
