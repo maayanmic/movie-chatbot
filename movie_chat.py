@@ -307,7 +307,14 @@ Return JSON format only."""
 
             for keyword in keywords:
                 if len(keyword) > 2:
-                    keyword_mask = filtered['description'].str.contains(keyword, case=False, na=False)
+                    # Clean keyword from punctuation
+                    clean_keyword = keyword.strip('.,!?;:')
+                    print(f"DEBUG: Searching for keyword '{clean_keyword}'")
+                    keyword_mask = filtered['description'].str.contains(clean_keyword, case=False, na=False)
+                    matches = filtered[keyword_mask]
+                    print(f"DEBUG: Found {len(matches)} movies with '{clean_keyword}'")
+                    if clean_keyword == 'missing' and len(matches) > 0:
+                        print(f"DEBUG: Movies with 'missing': {matches['name'].head(3).tolist()}")
                     filtered.loc[keyword_mask, 'keyword_score'] += 1
 
             keyword_filtered = filtered[filtered['keyword_score'] > 0]
