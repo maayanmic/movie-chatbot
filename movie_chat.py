@@ -577,7 +577,7 @@ Examples:
                     # Fallback: extract from current query with context
                     params = self.extract_query_parameters(user_query, conversation_context)
                 filtered_movies = self.filter_movies(params)
-                return self.generate_analytical_response(filtered_movies, user_query)
+                return self.generate_analytical_response(filtered_movies, user_query, conversation_context)
 
             # Extract parameters from query
             # Only pass context if it's a follow-up query
@@ -682,7 +682,7 @@ Respond with just "ANALYSIS" or "SEARCH"."""
             query_lower = query.lower()
             return any(word in query_lower for word in ['which', 'pick', 'recommend', 'best', 'rating', 'suitable'])
     
-    def generate_analytical_response(self, filtered_movies, query):
+    def generate_analytical_response(self, filtered_movies, query, conversation_context=""):
         """Generate analytical response using Gemini."""
         if filtered_movies.empty:
             return "I don't have any movies to analyze based on your previous search."
@@ -702,13 +702,18 @@ Respond with just "ANALYSIS" or "SEARCH"."""
                         'popularity_rating': rating
                     })
                 
+                # Include conversation context for better understanding
+                context_info = ""
+                if conversation_context:
+                    context_info = f"\nConversation history:\n{conversation_context}\n"
+                
                 # Create prompt for analysis
                 prompt = f"""You are a movie recommendation chatbot. The user is asking: "{query}"
-
-Here are the movies from their previous search:
+{context_info}
+Movies available for analysis:
 {movies_data}
 
-Context: If you previously recommended a specific movie and the user asks "about this movie" or similar, talk about that movie you recommended.
+If the user asks about "this movie" or similar, refer to the specific movie you mentioned in the conversation history.
 
 Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCISE."""
 
