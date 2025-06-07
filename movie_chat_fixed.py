@@ -64,15 +64,12 @@ class MovieRecommender:
         """Check if the query is asking for analysis rather than recommendations using Gemini."""
         try:
             if self.model:
-                prompt = f"""Is this question asking me to analyze/pick from movies I already showed, or search for completely new movies?
+                prompt = f"""Does this question ask about movies I just showed in a previous response?
 
-Query: "{query}"
+"{query}"
 
-Examples:
-- "which one you recommend?" = ANALYSIS (pick from shown movies)
-- "what's the best one?" = ANALYSIS (analyze shown movies)  
-- "about this movie?" = ANALYSIS (analyze specific movie)
-- "action movies" = SEARCH (find new movies)
+If asking about previous results: ANALYSIS
+If asking for new movies: SEARCH
 
 Answer: ANALYSIS or SEARCH"""
                 response = self.model.generate_content(prompt)
@@ -96,12 +93,11 @@ Answer: ANALYSIS or SEARCH"""
         """Use Gemini to extract parameters from natural language query."""
         try:
             if self.model:
-                prompt = f"""Extract movie search parameters from this query. Include conversation context if relevant.
+                prompt = f"""Extract movie search parameters from this query only:
 
 Query: "{user_query}"
-Context: {conversation_context}
 
-Extract: genre, year_range, actor, director, country, age_group, description_keywords, intent
+Extract just: genre, year_range, actor, director, country, age_group, description_keywords, intent
 
 Respond in JSON format only."""
                 

@@ -16,6 +16,7 @@ app.secret_key = 'movie_recommender_secret_key_2024'
 conversation_memory = {}
 recommender = None
 
+
 class MovieRecommender:
     def __init__(self, csv_file_path):
         """Initialize the movie recommender with CSV data and Gemini client."""
@@ -101,31 +102,74 @@ class MovieRecommender:
         print(f"DEBUG: Processing query: {user_query}")
         print(f"DEBUG: Conversation context: {conversation_context[:200]}...")
 
-        system_prompt = """Extract movie search parameters from user query. If previous conversation context exists, include those parameters too.
+        system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
-Return JSON with these fields (use null if not mentioned):
-{
-  "genre": "action/comedy/drama/horror/romance/etc",
-  "year_range": [min_year, max_year],
-  "actor": "actor name",
-  "director": "director name",
-  "country": "country name", 
-  "age_group": "Kids/Teens/Adults",
-  "popular": "high/medium/low",
-  "runtime": duration_in_minutes,
-  "runtime_operator": "greater_than/less_than/equal_to",
-  "description_keywords": ["keyword1", "keyword2"],
-  "intent": "recommend/general_movie_question/off_topic"
-}
+IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be extremely flexible with genre recognition and spelling variations.
 
-Be flexible with spelling and handle Hebrew/English text."""
+CONTEXT HANDLING: When analyzing the current query, consider the previous conversation context to understand:
+- Follow-up questions (e.g., "only from 2019" after asking for kids movies)
+- Refinements (e.g., "something newer" or "more recent")
+- Continuations (e.g., "and also" or "what about")
+- References to previous recommendations
+
+CRITICAL INHERITANCE RULE: When conversation context is provided, you MUST ALWAYS extract parameters from BOTH the context AND the current query. Never ignore context parameters.
+
+MANDATORY EXAMPLES:
+Context: "User: give me drama movies" → Current: "for adults only"
+MUST RETURN: genre: "Drama", age_group: "Adults"
+
+Context: "User: drama movies" → Current: "what released in 2019?"  
+MUST RETURN: genre: "Drama", year_range: [2019, 2019]
+
+Context: "User: romantic movies" → Current: "from 2020"
+MUST RETURN: genre: "Romance", year_range: [2020, 2020]
+
+RULE: If the context mentions ANY parameter (genre, age_group, actor, etc.), include it in your response even if the current query doesn't mention it.
+
+EXAMPLES:
+Previous: "romantic movies" → Current: "from 2020" → Return: genre: "romantic", year_range: [2020, 2020]
+Previous: "action movies" → Current: "with Tom Cruise" → Return: genre: "action", actor: "Tom Cruise"
+
+GENRE VARIATIONS TO RECOGNIZE (including common typos):
+- Romance/Romantic: "romance", "romantic", "rommantic", "rommntic", "rommance", "romence", "romanc", "רומנטי", "רומנטית", "אהבה"
+- Action: "action", "actoin", "akshen", "אקשן", "פעולה"
+- Comedy: "comedy", "comdy", "komedia", "funny", "קומדיה"
+- Drama: "drama", "drame", "דרמה"
+- Horror: "horror", "scary", "horer", "horor", "אימה"
+- Thriller: "thriller", "thriler", "suspense", "מתח"
+- Sci-Fi: "sci-fi", "science fiction", "scifi", "sci fi", "מדע בדיוני"
+- Fantasy: "fantasy", "fantesy", "פנטזיה"
+- Documentary: "documentary", "documentry", "docu", "תיעודי"
+- Animation: "animation", "animated", "animtion", "cartoon", "אנימציה"
+
+Extract the following information from the user's query and return as JSON:
+- age_group: target age group ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
+- genre: specific genre ONLY if explicitly mentioned - be extremely flexible with spelling variations - if not mentioned, use null
+- year_range: [min_year, max_year] ONLY if years are explicitly mentioned - if not mentioned, use null
+- country: specific country ONLY if explicitly mentioned - if not mentioned, use null
+- popular: ONLY if user explicitly asks for popular/top movies (high, medium, low) OR specific rating (1, 2, 3, 4, 5) - if not mentioned, use null
+- actor: actor/actress name ONLY if explicitly mentioned - if not mentioned, use null
+- director: director name ONLY if explicitly mentioned - if not mentioned, use null
+- runtime: ONLY if duration is explicitly mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90) - if not mentioned, use null
+- runtime_operator: ONLY if runtime comparison is mentioned: "greater_than", "less_than", "equal_to" or "between" - if not mentioned, use null
+- description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"]) - if no plot description, use null
+- intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
+
+SPECIAL HANDLING FOR MOVIE REFERENCES:
+If the user asks about "this movie", "that movie", "the movie", or similar references without naming it specifically, check the conversation context for any movie titles mentioned in previous assistant responses. If found, set description_keywords to search for that specific movie title.
+
+Examples:
+- Context shows assistant mentioned "My Octopus Teacher" → User asks "about what this movie?" → description_keywords: ["My Octopus Teacher"]
+- Context shows assistant mentioned "Charming" → User asks "tell me about that movie" → description_keywords: ["Charming"]
+
+Return JSON format only."""
 
         try:
             if self.model:
                 context_info = ""
                 if conversation_context:
                     context_info = f"\n\nPrevious conversation context:\n{conversation_context}\n"
-                
+
                 prompt = f"{system_prompt}{context_info}\nUser query: {user_query}"
                 response = self.model.generate_content(prompt)
 
@@ -161,17 +205,17 @@ Be flexible with spelling and handle Hebrew/English text."""
             'description_keywords': None,
             'intent': 'recommend'
         }
-        
+
         # Check if this is a follow-up query based on conversation context
         if conversation_context:
             if self.is_followup_query(query, conversation_context):
                 context_params = self.extract_context_parameters(conversation_context)
                 params.update(context_params)
-        
-        # Extract additional parameters from the current query itself 
+
+        # Extract additional parameters from the current query itself
         # (beyond what was extracted from context)
         query_lower = query.lower()
-        
+
         # Simple age detection for kids content
         age_indicators = ['year old', 'years old', 'month old', 'months old', 'baby', 'toddler', 'infant']
         for indicator in age_indicators:
@@ -182,7 +226,7 @@ Be flexible with spelling and handle Hebrew/English text."""
                 if age_match:
                     age_num = int(age_match.group(1))
                     age_unit = age_match.group(2)
-                    
+
                     # Convert to approximate age groups
                     if (age_unit == 'month' and age_num <= 24) or (age_unit == 'year' and age_num <= 2):
                         params['age_group'] = 'Kids'
@@ -191,14 +235,14 @@ Be flexible with spelling and handle Hebrew/English text."""
                         params['age_group'] = 'Kids'
                         print(f"DEBUG: Detected child age ({age_num} {age_unit}), setting to Kids")
                 break
-        
+
         # Kids/Family detection
         kids_indicators = [
-            'for kids', 'for children', 'suitable for kids', 'suit to kids', 
+            'for kids', 'for children', 'suitable for kids', 'suit to kids',
             'that will suit', 'appropriate for kids', 'family friendly',
             'children can watch', 'kids can watch', 'child friendly'
         ]
-        
+
         for indicator in kids_indicators:
             if indicator in query_lower:
                 params['age_group'] = 'Kids'
@@ -234,20 +278,21 @@ Be flexible with spelling and handle Hebrew/English text."""
         # Extract keywords for description search - improved to catch more patterns
         description_keywords = []
         query_lower = query.lower()
-        
+
         # Look for story patterns
         story_indicators = ['about', 'movie about', 'film about', 'story of', 'follows', 'centers on']
-        
+
         for indicator in story_indicators:
             if indicator in query_lower:
                 start_pos = query_lower.find(indicator) + len(indicator)
                 remaining_text = query[start_pos:].strip()
                 words = remaining_text.split()
                 meaningful_words = [word for word in words if len(word) > 2 and  # Changed from 3 to 2
-                                  word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which', 'and', 'the', 'his', 'her']]
+                                    word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which',
+                                                         'and', 'the', 'his', 'her']]
                 description_keywords.extend(meaningful_words[:7])  # Increased from 5 to 7
                 break
-        
+
         # Also look for specific key terms in the query
         key_terms = ['doctor', 'psychiatrist', 'missing', 'wife', 'treat', 'medical', 'condition', 'patient']
         for term in key_terms:
@@ -259,7 +304,7 @@ Be flexible with spelling and handle Hebrew/English text."""
 
         # Extract year or year range from current query if present
         import re
-        
+
         # First try to find year ranges like "from 2019 to 2021", "2019-2021", "between 2019 and 2021"
         range_patterns = [
             r'from\s+(\d{4})\s+to\s+(\d{4})',
@@ -267,7 +312,7 @@ Be flexible with spelling and handle Hebrew/English text."""
             r'(\d{4})\s*-\s*(\d{4})',
             r'(\d{4})\s+to\s+(\d{4})'
         ]
-        
+
         year_range_found = False
         for pattern in range_patterns:
             range_match = re.search(pattern, query_lower)
@@ -279,7 +324,7 @@ Be flexible with spelling and handle Hebrew/English text."""
                     params['year_range'] = [min(start_year, end_year), max(start_year, end_year)]
                     year_range_found = True
                     break
-        
+
         # If no range found, look for single year
         if not year_range_found:
             year_match = re.search(r'\b(19|20)(\d{2})\b', query)
@@ -298,11 +343,11 @@ Be flexible with spelling and handle Hebrew/English text."""
         """Use Gemini to determine if query is a follow-up or new topic."""
         if not context.strip():
             return False
-            
+
         if not self.model:
             # Simple fallback if no AI available
             return len(query.split()) <= 3
-            
+
         try:
             prompt = f"""
 Analyze if the user's current query is a follow-up to the previous conversation or a completely new movie request.
@@ -326,10 +371,10 @@ Examples:
 - "What action movies do you recommend?" → NEW_TOPIC
 - "I want comedy movies" → NEW_TOPIC
 """
-            
+
             response = self.model.generate_content(prompt)
             result = response.text.strip().upper()
-            
+
             if "FOLLOWUP" in result:
                 print(f"DEBUG: Gemini detected FOLLOWUP")
                 return True
@@ -339,68 +384,67 @@ Examples:
             else:
                 print(f"DEBUG: Gemini unclear response: {result}, assuming followup")
                 return True
-                
+
         except Exception as e:
             print(f"DEBUG: Gemini failed: {str(e)}, using enhanced fallback")
             # Enhanced fallback when Gemini is unavailable
             query_lower = query.lower().strip()
-            
+
             # Clear new topic indicators - complete requests for movies
             new_topic_phrases = [
-                'what movies', 'which movies', 'can you give me', 'give me', 'can you recommend', 
+                'what movies', 'which movies', 'can you give me', 'give me', 'can you recommend',
                 'recommend', 'suggest', 'i want movies', 'i need movies', 'i want', 'i need',
                 'find me', 'show me', 'looking for', 'help me find'
             ]
-            
+
             # Check for genre + movies combinations that indicate new requests
             genre_requests = [
                 'drama movies', 'action movies', 'comedy movies', 'horror movies',
                 'romantic movies', 'sci-fi movies', 'fantasy movies', 'thriller movies'
             ]
-            
+
             if any(phrase in query_lower for phrase in new_topic_phrases + genre_requests):
                 return False
-            
+
             # Strong follow-up indicators (regardless of length)
             follow_indicators = ['only', 'just', 'from', 'but', 'and', 'also', 'more', 'other', 'newer', 'older']
             if any(query_lower.startswith(word + ' ') for word in follow_indicators):
                 return True
-            
+
             # Year patterns indicate refinement
             import re
             if re.search(r'\b(19|20)\d{2}\b', query):
                 return True
-            
+
             # Default: short queries are follow-ups
             return len(query.split()) <= 4
-
 
     def extract_context_parameters(self, context):
         """Extract relevant parameters from conversation context."""
         params = {}
-        
+
         # Find ALL user queries from context, not just the last one
         lines = context.split('\n')
         user_queries = []
         for line in lines:
             if line.startswith('User: '):
                 user_queries.append(line[6:])  # Remove 'User: ' prefix
-        
+
         if not user_queries:
             return params
-            
+
         # Process all user queries to accumulate parameters
         # Start from the oldest query and build up context
         for query in user_queries:
             query_params = self.basic_parameter_extraction(query, "")
-            
+
             # Add parameters that aren't already set (first occurrence wins for core attributes)
             for key, value in query_params.items():
                 if value is not None and key != 'intent':
                     if key not in params or params[key] is None:
                         params[key] = value
                         print(f"DEBUG: Inherited {key}='{value}' from context query: {query}")
-                
+
         return params
 
     def filter_movies(self, params):
@@ -427,28 +471,19 @@ Examples:
                 'romantic': 'romantic',
                 'action': 'action',
                 'comedy': 'comedies',
-                'comedies': 'comedies',
                 'drama': 'dramas',
-                'dramas': 'dramas',
                 'horror': 'horror',
                 'thriller': 'thriller',
                 'sci-fi': 'sci-fi',
                 'fantasy': 'fantasy',
                 'documentary': 'documentaries',
-                'animation': 'children',
-                'children': 'children',
-                'kids': 'children',
-                'family': 'children',
-                'children & family movies': 'children',
-                'family movies': 'children'
+                'animation': 'children'
             }
 
             # Use mapped genre or original if no mapping exists
             search_genre = genre_mapping.get(genre, genre)
-            print(f"DEBUG: Genre filtering - original: {genre_value}, processed: {genre}, mapped to: {search_genre}")
             genre_mask = filtered['genre'].str.contains(search_genre, case=False, na=False)
             filtered = filtered[genre_mask]
-            print(f"DEBUG: After genre filtering: {len(filtered)} movies found")
 
         # Year range filtering
         if params.get('year_range'):
@@ -516,7 +551,8 @@ Examples:
                     if clean_keyword == 'missing' and len(matches) > 0:
                         print(f"DEBUG: Movies with 'missing': {matches['name'].head(5).tolist()}")
                         # Check specifically for the movie with the exact description
-                        exact_match = filtered[filtered['description'].str.contains("When a doctor goes missing, his psychiatrist wife treats", case=False, na=False)]
+                        exact_match = filtered[filtered['description'].str.contains(
+                            "When a doctor goes missing, his psychiatrist wife treats", case=False, na=False)]
                         if not exact_match.empty:
                             movie_name = exact_match.iloc[0]['name']
                             print(f"DEBUG: Found exact match movie: '{movie_name}'")
@@ -544,7 +580,8 @@ Examples:
         # Smart sorting logic based on search type
         if is_specific_search:
             if 'keyword_score' in filtered.columns:
-                filtered = filtered.sort_values(['keyword_score', 'popular', 'released'], ascending=[False, False, False])
+                filtered = filtered.sort_values(['keyword_score', 'popular', 'released'],
+                                                ascending=[False, False, False])
             else:
                 filtered = filtered.sort_values(['popular', 'released'], ascending=[False, False])
         else:
@@ -567,17 +604,6 @@ Examples:
 
             # Check if this is a follow-up query or new topic
             is_followup = self.is_followup_query(user_query, conversation_context) if conversation_context else False
-            
-            # Check if this is an analytical question first (before filtering)
-            if conversation_context and self.is_analytical_question(user_query):
-                # For analytical questions, use the ORIGINAL search parameters from context
-                # Extract the original parameters that were used in the previous search
-                params = self.extract_context_parameters(conversation_context)
-                if not params:
-                    # Fallback: extract from current query with context
-                    params = self.extract_query_parameters(user_query, conversation_context)
-                filtered_movies = self.filter_movies(params)
-                return self.generate_analytical_response(filtered_movies, user_query, conversation_context)
 
             # Extract parameters from query
             # Only pass context if it's a follow-up query
@@ -597,22 +623,22 @@ Examples:
 
             # Generate response
             if not filtered_movies.empty:
-                return self.generate_fallback_response(filtered_movies, params)
+                return self.generate_response(filtered_movies, params, user_query)
             else:
                 return "I couldn't find any movies matching your specific criteria. Try broadening your search or asking for different genres, years, or actors."
 
         except Exception as e:
             return f"I encountered an error while processing your request: {str(e)}. Please try again with a different query."
-    
+
     def suggest_alternatives(self, conversation_context, user_query):
         """Suggest alternative genres when user doesn't like previous recommendations."""
-        
+
         # Extract the previous genre from context
         previous_genre = None
         if conversation_context:
             context_params = self.extract_context_parameters(conversation_context)
             previous_genre = context_params.get('genre')
-        
+
         # Define alternative genre mappings
         genre_alternatives = {
             'Romance': ['Comedy', 'Drama', 'Family'],
@@ -626,23 +652,23 @@ Examples:
             'Documentary': ['Biography', 'History', 'Crime'],
             'Animation': ['Family', 'Comedy', 'Adventure']
         }
-        
+
         alternatives = genre_alternatives.get(previous_genre, ['Comedy', 'Drama', 'Action'])
-        
+
         # Get sample movies from alternative genres
         response_text = f"I understand you didn't like the {previous_genre.lower() if previous_genre else 'previous'} recommendations. Let me suggest some alternatives:\n\n"
-        
+
         for alt_genre in alternatives:
             # Get a few movies from this alternative genre
             alt_params = {'genre': alt_genre, 'intent': 'recommend'}
             alt_movies = self.filter_movies(alt_params)
-            
+
             if not alt_movies.empty:
                 top_movie = alt_movies.iloc[0]
                 response_text += f"• **{alt_genre}**: Try \"{top_movie['title']}\" ({top_movie['release_year']})\n"
-        
+
         response_text += "\nJust let me know which genre interests you, or ask for something completely different!"
-        
+
         return response_text
 
     def generate_response(self, filtered_movies, params, original_query):
@@ -652,47 +678,56 @@ Examples:
             return self.generate_analytical_response(filtered_movies, original_query)
         else:
             return self.generate_fallback_response(filtered_movies, params)
-    
+
     def is_analytical_question(self, query):
         """Check if the query is asking for analysis rather than recommendations using Gemini."""
         try:
             if self.model:
-                prompt = f"""Is this question asking me to analyze/pick from movies I already showed, or search for completely new movies?
+                prompt = f"""Is this query asking for analysis/conversation about existing results, or asking for new movie search?
 
 Query: "{query}"
 
-Examples:
-- "which one you recommend?" = ANALYSIS (pick from shown movies)
-- "what's the best one?" = ANALYSIS (analyze shown movies)  
-- "about this movie?" = ANALYSIS (analyze specific movie)
-- "action movies" = SEARCH (find new movies)
+Respond with just "ANALYSIS" or "SEARCH".
 
-Answer: ANALYSIS or SEARCH"""
+ANALYSIS examples:
+- "which one is the best?"
+- "pick one for me"
+- "are they suitable for kids?"
+- "what about the ratings?"
+- "tell me more about..."
+- "which do you recommend?"
+
+SEARCH examples:
+- "show me action movies"
+- "find comedy from 2020"
+- "I want romantic films"
+- "get me thriller movies"
+"""
                 response = self.model.generate_content(prompt)
-                print(f"DEBUG: Analysis check - Query: '{query}' -> Gemini response: '{response.text}'")
                 return "ANALYSIS" in response.text.upper()
             else:
                 # Basic fallback using general patterns
                 query_lower = query.lower()
                 # Check for question words that typically indicate analysis
-                question_patterns = ['which', 'what', 'how', 'are they', 'is it', 'tell me', 'pick', 'choose', 'recommend', 'suggest']
+                question_patterns = ['which', 'what', 'how', 'are they', 'is it', 'tell me', 'pick', 'choose',
+                                     'recommend', 'suggest']
                 # Check for analysis context words
                 analysis_context = ['one', 'best', 'better', 'rating', 'suitable', 'good', 'about']
-                
+
                 has_question = any(pattern in query_lower for pattern in question_patterns)
                 has_context = any(context in query_lower for context in analysis_context)
-                
+
                 return has_question and has_context
         except Exception as e:
             # Basic fallback
             query_lower = query.lower()
             return any(word in query_lower for word in ['which', 'pick', 'recommend', 'best', 'rating', 'suitable'])
-    
-    def generate_analytical_response(self, filtered_movies, query, conversation_context=""):
+
+    def generate_analytical_response(self, filtered_movies, query):
         """Generate analytical response using Gemini."""
         if filtered_movies.empty:
             return "I don't have any movies to analyze based on your previous search."
-        
+
         try:
             if self.model:
                 # Prepare movie data for analysis
@@ -707,35 +742,34 @@ Answer: ANALYSIS or SEARCH"""
                         'genre': genre,
                         'popularity_rating': rating
                     })
-                
-                # Include conversation context for better understanding
-                context_info = ""
-                if conversation_context:
-                    context_info = f"\nConversation history:\n{conversation_context}\n"
-                
+
                 # Create prompt for analysis
                 prompt = f"""You are a movie recommendation chatbot. The user is asking: "{query}"
-{context_info}
-Movies available for analysis:
+
+Here are the movies from their previous search:
 {movies_data}
 
-If the user asks about "this movie" or similar, refer to the specific movie you mentioned in the conversation history.
+Give a SHORT, conversational response (2-3 sentences max). Examples:
 
-Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCISE."""
+User asks "which one you recommend?" → Pick ONE movie and briefly explain why
+User asks "are they suitable for kids?" → Simple yes/no with quick reason
+User asks about ratings → Brief comparison or explanation
+
+Be friendly but CONCISE. Keep it short and helpful."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
             else:
                 return self.generate_basic_analytical_response(filtered_movies, query)
-                
+
         except Exception as e:
             return self.generate_basic_analytical_response(filtered_movies, query)
-    
+
     def generate_basic_analytical_response(self, filtered_movies, query):
         """Generate basic analytical response without AI - simple fallback."""
         if len(filtered_movies) == 0:
             return "I don't have any movies to analyze based on your search."
-        
+
         # Very basic response that doesn't rely on specific keywords
         if len(filtered_movies) == 1:
             movie = filtered_movies.iloc[0]
@@ -743,7 +777,7 @@ Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCI
             rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
             genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
             return f"Looking at \"{movie['name']}\" ({year}) - it has a popularity rating of {rating}/5 in the {genre} category."
-        
+
         # For multiple movies, provide general statistics
         total_movies = len(filtered_movies)
         avg_rating = filtered_movies['popular'].mean() if not filtered_movies['popular'].isnull().all() else 0
@@ -766,12 +800,12 @@ Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCI
                 criteria.append(f"from {params['year_range']}")
             if params.get('country'):
                 criteria.append(f"from {params['country']}")
-            
+
             if criteria:
                 intro += f" for {' and '.join(criteria)}"
-        
+
         intro += ":\n\n"
-        
+
         response = intro
         for _, movie in filtered_movies.iterrows():
             year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
@@ -779,6 +813,7 @@ Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCI
             response += f"• {movie['name']} ({year}) - {genre}\n"
 
         return response
+
 
 def initialize_system():
     """Initialize the movie recommendation system."""
@@ -791,8 +826,10 @@ def initialize_system():
 
     print("System initialized successfully!")
 
+
 def setup_routes():
     """Setup Flask routes."""
+
     @app.route('/')
     def index():
         return render_template('index.html')
@@ -860,7 +897,7 @@ def setup_routes():
 
             # Get conversation context for better understanding
             context = get_conversation_context(user_id)
-            
+
             # Get movie recommendation with context
             recommendation = recommender.get_recommendation(query, context)
 
@@ -873,11 +910,13 @@ def setup_routes():
             print(f"Error in recommend endpoint: {str(e)}")
             return jsonify({'error': 'An error occurred processing your request'}), 500
 
+
 def start_server():
     """Start the Flask development server."""
     print("Starting Flask server...")
     print("Open your browser and go to: http://localhost:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 def main():
     """Main function to run the application."""
@@ -893,6 +932,7 @@ def main():
 
     # Start the server
     start_server()
+
 
 if __name__ == '__main__':
     main()
