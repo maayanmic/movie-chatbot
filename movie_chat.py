@@ -652,6 +652,7 @@ Query: "{query}"
 
 Respond with just "ANALYSIS" or "SEARCH"."""
                 response = self.model.generate_content(prompt)
+                print(f"DEBUG: Analysis check - Query: '{query}' -> Gemini response: '{response.text}'")
                 return "ANALYSIS" in response.text.upper()
             else:
                 # Basic fallback using general patterns
