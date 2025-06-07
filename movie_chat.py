@@ -708,13 +708,9 @@ Respond with just "ANALYSIS" or "SEARCH"."""
 Here are the movies from their previous search:
 {movies_data}
 
-Give a SHORT, conversational response (2-3 sentences max). Examples:
+Context: If you previously recommended a specific movie and the user asks "about this movie" or similar, talk about that movie you recommended.
 
-User asks "which one you recommend?" → Pick ONE movie and briefly explain why
-User asks "are they suitable for kids?" → Simple yes/no with quick reason
-User asks about ratings → Brief comparison or explanation
-
-Be friendly but CONCISE. Keep it short and helpful."""
+Give a SHORT, conversational response (2-3 sentences max). Be friendly but CONCISE."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
