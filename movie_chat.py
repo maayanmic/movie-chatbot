@@ -312,7 +312,8 @@ Return JSON format only."""
         if len(query_lower.split()) <= 4:
             for indicator in followup_indicators:
                 # Check if query starts with the indicator OR contains it as a separate word
-                if query_lower.startswith(indicator) or f' {indicator} ' in f' {query_lower} ':
+                if query_lower.startswith(indicator + ' ') or f' {indicator} ' in f' {query_lower} ' or query_lower == indicator:
+                    print(f"DEBUG: Found follow-up indicator '{indicator}' in query '{query}'")
                     return True
         
         # Check for year patterns (2019, 2020, etc.)
@@ -597,17 +598,35 @@ Generate a helpful response in English. Start with a brief introduction, then li
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
             else:
-                return self.generate_fallback_response(filtered_movies)
+                return self.generate_fallback_response(filtered_movies, params)
 
         except Exception as e:
-            return self.generate_fallback_response(filtered_movies)
+            return self.generate_fallback_response(filtered_movies, params)
 
-    def generate_fallback_response(self, filtered_movies):
+    def generate_fallback_response(self, filtered_movies, params=None):
         """Generate a basic response without AI."""
         if filtered_movies.empty:
             return "I couldn't find any movies matching your criteria. Please try a different search."
 
-        response = "Here are some movie recommendations for you:\n\n"
+        # Generate contextual intro based on parameters
+        intro = "Here are some movie recommendations"
+        if params:
+            criteria = []
+            if params.get('genre'):
+                criteria.append(f"{params['genre'].lower()} movies")
+            if params.get('age_group'):
+                criteria.append(f"suitable for {params['age_group'].lower()}")
+            if params.get('year_range'):
+                criteria.append(f"from {params['year_range']}")
+            if params.get('country'):
+                criteria.append(f"from {params['country']}")
+            
+            if criteria:
+                intro += f" for {' and '.join(criteria)}"
+        
+        intro += ":\n\n"
+        
+        response = intro
         for _, movie in filtered_movies.iterrows():
             year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
             genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown genre'
