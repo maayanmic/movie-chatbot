@@ -106,9 +106,9 @@ class DataValidator:
             raise DataLoadException(f"Missing required columns: {missing_columns}")
         
         # Clean data
-        df = df.dropna(subset=['name'])
-        df['released'] = pd.to_numeric(df['released'], errors='coerce')
-        df['popular'] = pd.to_numeric(df['popular'], errors='coerce')
+        df = df.dropna(subset=['name']).copy()
+        df.loc[:, 'released'] = pd.to_numeric(df['released'], errors='coerce')
+        df.loc[:, 'popular'] = pd.to_numeric(df['popular'], errors='coerce')
         
         # Remove invalid years and ratings
         df = df[(df['released'] >= 1900) & (df['released'] <= 2030)]
@@ -881,7 +881,7 @@ if __name__ == '__main__':
         print("Starting Flask server...")
         print("Open your browser and go to: http://localhost:5000")
         
-        app.run(host='0.0.0.0', port=5001, debug=True)
+        app.run(host='0.0.0.0', port=5000, debug=True)
         
     except Exception as e:
         print(f"Failed to start application: {e}")
