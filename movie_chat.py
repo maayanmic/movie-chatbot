@@ -96,13 +96,21 @@ class MovieRecommender:
 
         return False
 
-    def extract_query_parameters(self, user_query):
+    def extract_query_parameters(self, user_query, conversation_context=""):
         """Use Gemini to extract parameters from natural language query."""
         print(f"DEBUG: Processing query: {user_query}")
 
         system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
 IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be extremely flexible with genre recognition and spelling variations.
+
+CONTEXT HANDLING: When analyzing the current query, consider the previous conversation context to understand:
+- Follow-up questions (e.g., "only from 2019" after asking for kids movies)
+- Refinements (e.g., "something newer" or "more recent")
+- Continuations (e.g., "and also" or "what about")
+- References to previous recommendations
+
+If the user's query seems to be refining or building upon a previous request, extract ALL relevant parameters including those from the context.
 
 GENRE VARIATIONS TO RECOGNIZE (including common typos):
 - Romance/Romantic: "romance", "romantic", "rommantic", "rommntic", "rommance", "romence", "romanc", "רומנטי", "רומנטית", "אהבה"
@@ -133,7 +141,11 @@ Return JSON format only."""
 
         try:
             if self.model:
-                prompt = f"{system_prompt}\n\nUser query: {user_query}"
+                context_info = ""
+                if conversation_context:
+                    context_info = f"\n\nPrevious conversation context:\n{conversation_context}\n"
+                
+                prompt = f"{system_prompt}{context_info}\nUser query: {user_query}"
                 response = self.model.generate_content(prompt)
 
                 # Extract JSON from response
@@ -357,7 +369,7 @@ Return JSON format only."""
             print(f"  {i}. {movie['name']} - Popularity: {movie['popular']}")
         return result
 
-    def get_recommendation(self, user_query):
+    def get_recommendation(self, user_query, conversation_context=""):
         """Main method to get movie recommendations based on user query."""
         try:
             # Check for off-topic queries first
@@ -366,7 +378,7 @@ Return JSON format only."""
                 return "I'm sorry, but I specialize only in the world of movies. Please ask me about movie recommendations, actors, directors, or anything related to films!"
 
             # Extract parameters from query
-            params = self.extract_query_parameters(user_query)
+            params = self.extract_query_parameters(user_query, conversation_context)
 
             # Handle off-topic intent
             if params.get('intent') == 'off_topic':
@@ -489,8 +501,11 @@ def setup_routes():
                     conversation_memory[user_id] = []
                 return jsonify({'recommendation': 'Conversation reset successfully'})
 
-            # Get movie recommendation without context for better results
-            recommendation = recommender.get_recommendation(query)
+            # Get conversation context for better understanding
+            context = get_conversation_context(user_id)
+            
+            # Get movie recommendation with context
+            recommendation = recommender.get_recommendation(query, context)
 
             # Save conversation to memory
             save_conversation(user_id, query, recommendation)
