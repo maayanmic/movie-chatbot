@@ -435,6 +435,10 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                 elif 'animation' in user_genre:
                     genre_filter = filtered['genre'].str.contains('Anime|Animation|Children & Family Movies', case=False, na=False)
                     print(f"DEBUG: Looking for kids animation/anime content")
+                elif 'romance' in user_genre or 'romantic' in user_genre:
+                    # For kids romantic movies, look for family-friendly romantic content
+                    genre_filter = filtered['genre'].str.contains('Children & Family Movies.*Romantic', case=False, na=False)
+                    print(f"DEBUG: Looking for kids romantic: Children & Family Movies with Romantic")
                 else:
                     # For other kids genres, prioritize Children & Family Movies
                     genre_filter = filtered['genre'].str.contains('Children & Family Movies', case=False, na=False)
