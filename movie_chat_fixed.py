@@ -152,42 +152,16 @@ Respond in JSON format only."""
                         params['age_group'] = 'Kids'
                 break
 
-        # Kids/Family detection
-        kids_indicators = [
-            'for kids', 'for children', 'suitable for kids', 'suit to kids',
-            'that will suit', 'appropriate for kids', 'family friendly',
-            'children can watch', 'kids can watch', 'child friendly'
-        ]
-
-        for indicator in kids_indicators:
-            if indicator in query_lower:
+        # Use algorithmic approach - check if query contains terms that appear in actual data
+        if hasattr(self, 'movies_df') and not self.movies_df.empty:
+            # Check for age-related terms in the query
+            if any(word in query_lower for word in ['kids', 'children', 'child', 'family']):
                 params['age_group'] = 'Kids'
-                break
-
-        # Genre detection using fuzzy matching
-        genre_keywords = {
-            'romance': ['romance', 'romantic'],
-            'action': ['action'],
-            'comedy': ['comedy', 'comedies', 'funny'],
-            'drama': ['drama'],
-            'horror': ['horror', 'scary'],
-            'thriller': ['thriller', 'suspense'],
-            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
-            'fantasy': ['fantasy'],
-            'documentary': ['documentary', 'docu'],
-            'animation': ['animation', 'animated', 'cartoon'],
-            'adventure': ['adventure'],
-            'crime': ['crime'],
-            'mystery': ['mystery'],
-            'musical': ['musical', 'music'],
-            'war': ['war'],
-            'western': ['western'],
-            'family': ['family']
-        }
-
-        if not params.get('genre'):
-            for genre, keywords in genre_keywords.items():
-                if self.fuzzy_match(query_lower, keywords):
+            
+            # Check for genre terms by matching against actual genres in dataset
+            unique_genres = self.movies_df['genre'].dropna().unique()
+            for genre in unique_genres:
+                if len(genre) > 3 and genre.lower() in query_lower:
                     params['genre'] = genre
                     break
 
@@ -324,18 +298,6 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
             
             filtered = filtered[genre_filter]
             print(f"DEBUG: After genre filtering: {len(filtered)} movies")
-            
-            # Age group filtering for kids content
-            if params.get('age_group') == 'Kids':
-                print(f"DEBUG: Applying kids filter")
-                family_genres = ['Animation', 'Family', 'Comedy', 'Adventure', 'Musical']
-                kids_filter = (
-                    filtered['genre'].isin(family_genres) |
-                    filtered['genre'].str.contains('Family|Animation|Comedy', case=False, na=False)
-                )
-                if kids_filter.any():
-                    filtered = filtered[kids_filter]
-                    print(f"DEBUG: After kids filtering: {len(filtered)} movies")
         
         # Description keywords filtering - algorithmic search through actual data
         elif params.get('description_keywords'):
