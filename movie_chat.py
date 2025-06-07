@@ -388,10 +388,14 @@ Return JSON format only."""
                 params['director'] = words[idx + 1]
 
         # Quick country detection
-        countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'korean', 'chinese', 'indian', 'italian', 'spanish']
+        countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'singaphore', 'korean', 'chinese', 'indian', 'italian', 'spanish']
         for country in countries:
             if country in query_lower or f'from {country}' in query_lower or f'origin from {country}' in query_lower:
-                params['country'] = country.capitalize()
+                # Handle misspelling
+                if country == 'singaphore':
+                    params['country'] = 'Singapore'
+                else:
+                    params['country'] = country.capitalize()
                 break
 
         # Quick popularity detection
