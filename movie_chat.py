@@ -199,14 +199,17 @@ Return JSON format only."""
             context_params = self.extract_context_parameters(conversation_context)
             params.update(context_params)
         
-        # Also extract kids-related parameters from the current query itself
+        # Extract additional parameters from the current query itself 
+        # (beyond what was extracted from context)
+        query_lower = query.lower()
+        
+        # Kids/Family detection
         kids_indicators = [
             'for kids', 'for children', 'suitable for kids', 'suit to kids', 
             'that will suit', 'appropriate for kids', 'family friendly',
             'children can watch', 'kids can watch', 'child friendly'
         ]
         
-        query_lower = query.lower()
         for indicator in kids_indicators:
             if indicator in query_lower:
                 params['age_group'] = 'Kids'
@@ -296,14 +299,16 @@ Return JSON format only."""
         if re.search(r'\b(19|20)\d{2}\b', query):
             return True
         
-        # Check for kids-related follow-up queries
-        kids_patterns = [
-            'for kids', 'for children', 'suitable for kids', 'suit to kids', 
-            'that will suit', 'appropriate for kids', 'family friendly',
-            'children can watch', 'kids can watch'
+        # Check for refinement queries - patterns that indicate filtering/refining
+        refinement_patterns = [
+            'for kids', 'for children', 'suitable for', 'that will suit', 
+            'appropriate for', 'family friendly', 'children can watch', 
+            'from the', 'in the', 'by the', 'with the', 'about',
+            'starring', 'directed by', 'similar to', 'like that',
+            'that are', 'which are', 'more like', 'something like'
         ]
         
-        for pattern in kids_patterns:
+        for pattern in refinement_patterns:
             if pattern in query_lower:
                 return True
             
@@ -313,39 +318,24 @@ Return JSON format only."""
         """Extract relevant parameters from conversation context."""
         params = {}
         
-        # Look for kids/children mentions in context
-        if any(word in context.lower() for word in ['kids', 'children', 'child', 'family']):
-            params['age_group'] = 'Kids'
-            
-        # Look for genre mentions in context  
-        genre_patterns = {
-            'romance': ['romantic', 'romance', 'love', 'romantic movies'],
-            'action': ['action'],
-            'comedy': ['comedy', 'funny', 'comedies'],
-            'drama': ['drama', 'dramas'],
-            'horror': ['horror', 'scary'],
-            'thriller': ['thriller', 'suspense']
-        }
-        
-        context_lower = context.lower()
-        for genre, keywords in genre_patterns.items():
-            if any(keyword in context_lower for keyword in keywords):
-                params['genre'] = genre.title()
-                break
-        
-        # Extract the most recent genre from the last user query in context
+        # Find the most recent user query from context
         lines = context.split('\n')
-        last_user_query = None
+        last_user_query = ""
         for line in lines:
             if line.startswith('User: '):
-                last_user_query = line[6:].lower()  # Remove 'User: ' prefix
+                last_user_query = line[6:]  # Remove 'User: ' prefix
         
-        if last_user_query:
-            for genre, keywords in genre_patterns.items():
-                if any(keyword in last_user_query for keyword in keywords):
-                    params['genre'] = genre.title()
-                    print(f"DEBUG: Extracted genre '{genre.title()}' from last query: {last_user_query}")
-                    break
+        if not last_user_query:
+            return params
+            
+        # Run the last query through parameter extraction to get all its parameters
+        last_query_params = self.basic_parameter_extraction(last_user_query, "")
+        
+        # Copy all non-None parameters from the last query
+        for key, value in last_query_params.items():
+            if value is not None and key != 'intent':
+                params[key] = value
+                print(f"DEBUG: Inherited {key}='{value}' from context query: {last_user_query}")
                 
         return params
 
