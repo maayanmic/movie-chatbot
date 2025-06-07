@@ -203,6 +203,34 @@ Return JSON format only."""
         # (beyond what was extracted from context)
         query_lower = query.lower()
         
+        # Check for negative feedback - if user doesn't like previous recommendations
+        negative_feedback = [
+            'not good', 'dont like', "don't like", 'different', 'other', 
+            'something else', 'not interested', 'boring', 'not what i want',
+            'change topic', 'try again', 'no thanks', 'not these', 'לא טוב',
+            'לא אוהב', 'משהו אחר', 'לא מעניין', 'נסה שוב'
+        ]
+        
+        is_negative_feedback = any(pattern in query_lower for pattern in negative_feedback)
+        
+        if is_negative_feedback and conversation_context:
+            # If user gives negative feedback, suggest alternative genres
+            params['intent'] = 'suggest_alternatives'
+            print("DEBUG: Detected negative feedback, will suggest alternatives")
+            return params
+        
+        # Check for similarity requests
+        similarity_patterns = ['similar to', 'like', 'reminds me of', 'דומה ל', 'כמו']
+        for pattern in similarity_patterns:
+            if pattern in query_lower:
+                # Extract movie name for similarity search
+                pattern_idx = query_lower.find(pattern)
+                movie_name = query_lower[pattern_idx + len(pattern):].strip()
+                if movie_name:
+                    params['similar_to'] = movie_name
+                    print(f"DEBUG: Detected similarity request for: {movie_name}")
+                    break
+        
         # Kids/Family detection
         kids_indicators = [
             'for kids', 'for children', 'suitable for kids', 'suit to kids', 
@@ -235,6 +263,9 @@ Return JSON format only."""
 
         for genre, keywords in genre_keywords.items():
             for word in query_words:
+                # Skip common words that might cause false matches
+                if word in ['year', 'old', 'new', 'good', 'best', 'great', 'nice']:
+                    continue
                 if self.fuzzy_match(word, keywords, threshold=0.6):
                     params['genre'] = genre.title()
                     break
@@ -308,7 +339,14 @@ Return JSON format only."""
             'that are', 'which are', 'more like', 'something like'
         ]
         
-        for pattern in refinement_patterns:
+        # Check for negative feedback patterns
+        negative_patterns = [
+            'not good', 'dont like', "don't like", 'different', 'other', 
+            'something else', 'not interested', 'boring', 'not what i want',
+            'change topic', 'try again', 'no thanks', 'not these'
+        ]
+        
+        for pattern in refinement_patterns + negative_patterns:
             if pattern in query_lower:
                 return True
             
@@ -492,6 +530,10 @@ Return JSON format only."""
             if params.get('intent') == 'off_topic':
                 return "I'm sorry, but I specialize only in the world of movies. Please ask me about movie recommendations, actors, directors, or anything related to films!"
 
+            # Handle alternative suggestions for negative feedback
+            if params.get('intent') == 'suggest_alternatives':
+                return self.suggest_alternatives(conversation_context, user_query)
+
             # Filter movies based on parameters
             filtered_movies = self.filter_movies(params)
 
@@ -503,6 +545,47 @@ Return JSON format only."""
 
         except Exception as e:
             return f"I encountered an error while processing your request: {str(e)}. Please try again with a different query."
+    
+    def suggest_alternatives(self, conversation_context, user_query):
+        """Suggest alternative genres when user doesn't like previous recommendations."""
+        
+        # Extract the previous genre from context
+        previous_genre = None
+        if conversation_context:
+            context_params = self.extract_context_parameters(conversation_context)
+            previous_genre = context_params.get('genre')
+        
+        # Define alternative genre mappings
+        genre_alternatives = {
+            'Romance': ['Comedy', 'Drama', 'Family'],
+            'Action': ['Thriller', 'Adventure', 'Sci-Fi'],
+            'Comedy': ['Romance', 'Family', 'Animation'],
+            'Drama': ['Thriller', 'Biography', 'History'],
+            'Horror': ['Thriller', 'Mystery', 'Sci-Fi'],
+            'Thriller': ['Action', 'Crime', 'Mystery'],
+            'Sci-Fi': ['Fantasy', 'Adventure', 'Action'],
+            'Fantasy': ['Adventure', 'Family', 'Animation'],
+            'Documentary': ['Biography', 'History', 'Crime'],
+            'Animation': ['Family', 'Comedy', 'Adventure']
+        }
+        
+        alternatives = genre_alternatives.get(previous_genre, ['Comedy', 'Drama', 'Action'])
+        
+        # Get sample movies from alternative genres
+        response_text = f"I understand you didn't like the {previous_genre.lower() if previous_genre else 'previous'} recommendations. Let me suggest some alternatives:\n\n"
+        
+        for alt_genre in alternatives:
+            # Get a few movies from this alternative genre
+            alt_params = {'genre': alt_genre, 'intent': 'recommend'}
+            alt_movies = self.filter_movies(alt_params)
+            
+            if not alt_movies.empty:
+                top_movie = alt_movies.iloc[0]
+                response_text += f"• **{alt_genre}**: Try \"{top_movie['title']}\" ({top_movie['release_year']})\n"
+        
+        response_text += "\nJust let me know which genre interests you, or ask for something completely different!"
+        
+        return response_text
 
     def generate_response(self, filtered_movies, params, original_query):
         """Generate a natural language response using Gemini."""
