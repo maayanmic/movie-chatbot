@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 
 # Global variables
-app = Flask(__name__, static_folder='.', template_folder='templates')
+app = Flask(__name__, static_folder='.', template_folder='.')
 app.secret_key = 'movie_recommender_secret_key_2024'
 conversation_memory = {}
 recommender = None
