@@ -163,13 +163,31 @@ Respond in JSON format only."""
                 params['age_group'] = 'Kids'
                 break
 
-        # Genre detection using algorithmic approach - check against actual data
-        if hasattr(self, 'movies') and not self.movies.empty:
-            unique_genres = self.movies['genre'].dropna().str.lower().unique()
-            for genre in unique_genres:
-                if len(genre) > 3 and genre in query_lower:
-                    params['genre'] = genre.title()
+        # Genre detection using fuzzy matching
+        genre_keywords = {
+            'romance': ['romance', 'romantic', 'רומנטי', 'רומנטית', 'אהבה'],
+            'action': ['action', 'actoin', 'akshen', 'אקשן', 'פעולה'],
+            'comedy': ['comedy', 'comedies', 'comdy', 'funny', 'קומדיה'],
+            'drama': ['drama', 'drame', 'דרמה'],
+            'horror': ['horror', 'scary', 'horer', 'horor', 'אימה'],
+            'thriller': ['thriller', 'thriler', 'suspense', 'מתח'],
+            'sci-fi': ['sci-fi', 'science fiction', 'scifi', 'מדע בדיוני'],
+            'fantasy': ['fantasy', 'fantesy', 'פנטזיה'],
+            'documentary': ['documentary', 'documentry', 'docu', 'תיעודי'],
+            'animation': ['animation', 'animated', 'cartoon', 'אנימציה']
+        }
+
+        # Split query into words for fuzzy matching
+        query_words = query_lower.replace(',', ' ').replace('.', ' ').split()
+        
+        for genre, keywords in genre_keywords.items():
+            for word in query_words:
+                if self.fuzzy_match(word, keywords):
+                    params['genre'] = genre
+                    print(f"DEBUG: Detected genre '{genre}' from word '{word}'")
                     break
+            if params['genre']:
+                break
         
         # Year detection
         year_patterns = [
@@ -191,26 +209,35 @@ Respond in JSON format only."""
 
         return params
     
-    def fuzzy_match(self, word, target_words, threshold=0.7):
+    def fuzzy_match(self, word, target_words, threshold=0.8):
         """Check if word matches any target word with fuzzy matching."""
         import difflib
 
         word_lower = word.lower().strip()
+        
+        # Skip very short words to avoid false positives
+        if len(word_lower) < 3:
+            return False
 
         for target in target_words:
             target_lower = target.lower()
+            
+            # Skip if target is much longer than word (avoids "me" matching "comedy")
+            if len(word_lower) < len(target_lower) / 2:
+                continue
 
             # Exact match
             if word_lower == target_lower:
                 return True
 
-            # Check if word contains target or target contains word
-            if word_lower in target_lower or target_lower in word_lower:
-                return True
+            # Check if word contains target or target contains word (but not for very short words)
+            if len(word_lower) >= 4 and len(target_lower) >= 4:
+                if word_lower in target_lower or target_lower in word_lower:
+                    return True
 
-            # Fuzzy matching using sequence similarity
+            # Fuzzy matching using sequence similarity with higher threshold
             similarity = difflib.SequenceMatcher(None, word_lower, target_lower).ratio()
-            if similarity >= threshold:
+            if similarity >= threshold and len(word_lower) >= 4:
                 return True
 
         return False
