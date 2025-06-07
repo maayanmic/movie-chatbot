@@ -448,7 +448,14 @@ Examples:
 
         # Genre filtering with mapping to actual CSV genres
         if params.get('genre') and params['genre'] != 'Unknown':
-            genre = params['genre'].lower()
+            # Handle both string and list formats from Gemini
+            genre_value = params['genre']
+            if isinstance(genre_value, list) and len(genre_value) > 0:
+                genre = genre_value[0].lower()
+            elif isinstance(genre_value, str):
+                genre = genre_value.lower()
+            else:
+                genre = None
 
             # Map user genres to actual CSV genre formats
             genre_mapping = {
