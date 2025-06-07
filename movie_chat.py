@@ -198,6 +198,20 @@ Return JSON format only."""
             print("DEBUG: Detected follow-up query, extracting context parameters")
             context_params = self.extract_context_parameters(conversation_context)
             params.update(context_params)
+        
+        # Also extract kids-related parameters from the current query itself
+        kids_indicators = [
+            'for kids', 'for children', 'suitable for kids', 'suit to kids', 
+            'that will suit', 'appropriate for kids', 'family friendly',
+            'children can watch', 'kids can watch', 'child friendly'
+        ]
+        
+        query_lower = query.lower()
+        for indicator in kids_indicators:
+            if indicator in query_lower:
+                params['age_group'] = 'Kids'
+                print(f"DEBUG: Detected kids request from current query: {indicator}")
+                break
 
         # Genre detection using fuzzy matching
         genre_keywords = {
@@ -281,6 +295,17 @@ Return JSON format only."""
         import re
         if re.search(r'\b(19|20)\d{2}\b', query):
             return True
+        
+        # Check for kids-related follow-up queries
+        kids_patterns = [
+            'for kids', 'for children', 'suitable for kids', 'suit to kids', 
+            'that will suit', 'appropriate for kids', 'family friendly',
+            'children can watch', 'kids can watch'
+        ]
+        
+        for pattern in kids_patterns:
+            if pattern in query_lower:
+                return True
             
         return False
 
