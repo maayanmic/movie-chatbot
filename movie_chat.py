@@ -362,8 +362,8 @@ Return JSON format only."""
             params['year_range'] = [2019, 2021]
 
         # Quick actor detection with fuzzy matching
-        # Handle "X is in the cast" pattern
-        if 'in the cast' in query_lower or 'is in' in query_lower:
+        # Handle "X is acting" or "X is in the cast" patterns
+        if 'is acting' in query_lower or 'is in the cast' in query_lower or 'is in' in query_lower:
             words = query.split()
             for i, word in enumerate(words):
                 if word.lower() == 'is' and i > 0:
