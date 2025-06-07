@@ -361,6 +361,31 @@ Return JSON format only."""
             # Set to recent years (2019-2021)
             params['year_range'] = [2019, 2021]
 
+        # Quick actor detection
+        if 'starring' in query_lower:
+            words = query.split()
+            idx = next((i for i, w in enumerate(words) if w.lower() == 'starring'), -1)
+            if idx >= 0 and idx < len(words) - 1:
+                params['actor'] = words[idx + 1]
+        
+        # Quick director detection  
+        if 'director' in query_lower:
+            words = query.split()
+            idx = next((i for i, w in enumerate(words) if w.lower() == 'director'), -1)
+            if idx >= 0 and idx < len(words) - 1:
+                params['director'] = words[idx + 1]
+
+        # Quick country detection
+        if any(c in query_lower for c in ['american', 'british', 'french', 'german', 'japanese']):
+            for country in ['american', 'british', 'french', 'german', 'japanese']:
+                if country in query_lower:
+                    params['country'] = country.capitalize()
+                    break
+
+        # Quick popularity detection
+        if any(w in query_lower for w in ['popular', 'top', 'best']):
+            params['popular'] = 'high'
+
         return params
 
     def is_followup_query(self, query, context):
