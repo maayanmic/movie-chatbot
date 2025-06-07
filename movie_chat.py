@@ -568,6 +568,14 @@ Examples:
             # Check if this is a follow-up query or new topic
             is_followup = self.is_followup_query(user_query, conversation_context) if conversation_context else False
             
+            # Check if this is an analytical question first (before filtering)
+            if conversation_context and self.is_analytical_question(user_query):
+                # For analytical questions, use previous search results from context
+                context_to_use = conversation_context if is_followup else ""
+                params = self.extract_query_parameters(user_query, context_to_use)
+                filtered_movies = self.filter_movies(params)
+                return self.generate_analytical_response(filtered_movies, user_query)
+
             # Extract parameters from query
             # Only pass context if it's a follow-up query
             context_to_use = conversation_context if is_followup else ""
@@ -586,7 +594,7 @@ Examples:
 
             # Generate response
             if not filtered_movies.empty:
-                return self.generate_response(filtered_movies, params, user_query)
+                return self.generate_fallback_response(filtered_movies, params)
             else:
                 return "I couldn't find any movies matching your specific criteria. Try broadening your search or asking for different genres, years, or actors."
 
