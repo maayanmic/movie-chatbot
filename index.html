@@ -336,20 +336,9 @@
             sendButton.disabled = true;
             sendButton.innerHTML = '<div class="loading"></div>';
             
-            // Add loading message
-            const loadingId = Date.now();
-            addMessage('<div class="loading"></div>', false);
-            
             try {
                 // Get bot response
                 const response = await sendMessage(message);
-                
-                // Remove loading message
-                const messages = chatMessages.querySelectorAll('.message.bot');
-                const lastMessage = messages[messages.length - 1];
-                if (lastMessage.querySelector('.loading')) {
-                    lastMessage.remove();
-                }
                 
                 // Add bot response
                 addMessage(response, false);
