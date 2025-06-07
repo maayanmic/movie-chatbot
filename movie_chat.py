@@ -288,12 +288,35 @@ Return JSON format only."""
         if description_keywords:
             params['description_keywords'] = description_keywords[:7]  # Limit to 7 terms
 
-        # Extract year from current query if present
+        # Extract year or year range from current query if present
         import re
-        year_match = re.search(r'\b(19|20)(\d{2})\b', query)
-        if year_match:
-            year = int(year_match.group(0))
-            params['year_range'] = [year, year]
+        
+        # First try to find year ranges like "from 2019 to 2021", "2019-2021", "between 2019 and 2021"
+        range_patterns = [
+            r'from\s+(\d{4})\s+to\s+(\d{4})',
+            r'between\s+(\d{4})\s+and\s+(\d{4})',
+            r'(\d{4})\s*-\s*(\d{4})',
+            r'(\d{4})\s+to\s+(\d{4})'
+        ]
+        
+        year_range_found = False
+        for pattern in range_patterns:
+            range_match = re.search(pattern, query_lower)
+            if range_match:
+                start_year = int(range_match.group(1))
+                end_year = int(range_match.group(2))
+                # Ensure valid year range
+                if 1900 <= start_year <= 2030 and 1900 <= end_year <= 2030:
+                    params['year_range'] = [min(start_year, end_year), max(start_year, end_year)]
+                    year_range_found = True
+                    break
+        
+        # If no range found, look for single year
+        if not year_range_found:
+            year_match = re.search(r'\b(19|20)(\d{2})\b', query)
+            if year_match:
+                year = int(year_match.group(0))
+                params['year_range'] = [year, year]
 
         # Handle temporal keywords (recent, latest, new, etc.)
         if any(word in query_lower for word in ['recent', 'latest', 'new', 'newer']):
