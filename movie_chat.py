@@ -645,29 +645,8 @@ Examples:
         return response_text
 
     def generate_response(self, filtered_movies, params, original_query):
-        """Generate a natural language response using Gemini."""
-        try:
-            if self.model and not filtered_movies.empty:
-                movies_text = ""
-                for _, movie in filtered_movies.iterrows():
-                    year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
-                    genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
-                    movies_text += f"• {movie['name']} ({year}) - {genre}\n"
-
-                prompt = f"""Based on the user's query: "{original_query}"
-
-Here are the most relevant movies from our database:
-{movies_text}
-
-Generate a helpful response in English. Start with a brief introduction, then list the movies with their details. Keep it conversational and informative."""
-
-                response = self.model.generate_content(prompt)
-                return response.text.strip()
-            else:
-                return self.generate_fallback_response(filtered_movies, params)
-
-        except Exception as e:
-            return self.generate_fallback_response(filtered_movies, params)
+        """Generate a natural language response with simple movie list format."""
+        return self.generate_fallback_response(filtered_movies, params)
 
     def generate_fallback_response(self, filtered_movies, params=None):
         """Generate a basic response without AI."""
