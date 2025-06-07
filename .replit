@@ -20,6 +20,10 @@ author = "agent"
 task = "workflow.run"
 args = "Movie Chat"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Advanced Movie Chat"
+
 [[workflows.workflow]]
 name = "Movie Chat"
 author = "agent"
@@ -27,6 +31,15 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python movie_chat_fixed.py"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Advanced Movie Chat"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python advanced_movie_chat.py"
 waitForPort = 5000
 
 [[ports]]
