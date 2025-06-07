@@ -294,7 +294,11 @@ Return JSON format only."""
         if year_match:
             year = int(year_match.group(0))
             params['year_range'] = [year, year]
-            print(f"DEBUG: Extracted year {year} from query")
+
+        # Handle temporal keywords (recent, latest, new, etc.)
+        if any(word in query_lower for word in ['recent', 'latest', 'new', 'newer']):
+            # Set to recent years (2019-2021)
+            params['year_range'] = [2019, 2021]
 
         return params
 
