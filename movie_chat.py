@@ -111,14 +111,19 @@ CONTEXT HANDLING: When analyzing the current query, consider the previous conver
 - Continuations (e.g., "and also" or "what about")
 - References to previous recommendations
 
-CRITICAL: If the user's query seems to be refining or building upon a previous request, you MUST:
-1. Extract parameters from the CURRENT query
-2. Inherit relevant parameters from the PREVIOUS query context
-3. Combine them into a complete parameter set
+CRITICAL INHERITANCE RULE: When conversation context is provided, you MUST ALWAYS extract parameters from BOTH the context AND the current query. Never ignore context parameters.
 
-For example, if previous query was "movies for kids" and current is "only from 2019", you should return:
-- age_group: "Kids" (from previous context)
-- year_range: [2019, 2019] (from current query)
+MANDATORY EXAMPLES:
+Context: "User: give me drama movies" → Current: "for adults only"
+MUST RETURN: genre: "Drama", age_group: "Adults"
+
+Context: "User: drama movies" → Current: "what released in 2019?"  
+MUST RETURN: genre: "Drama", year_range: [2019, 2019]
+
+Context: "User: romantic movies" → Current: "from 2020"
+MUST RETURN: genre: "Romance", year_range: [2020, 2020]
+
+RULE: If the context mentions ANY parameter (genre, age_group, actor, etc.), include it in your response even if the current query doesn't mention it.
 
 EXAMPLES:
 Previous: "romantic movies" → Current: "from 2020" → Return: genre: "romantic", year_range: [2020, 2020]
