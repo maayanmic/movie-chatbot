@@ -352,6 +352,25 @@ Return JSON format only."""
 
         if not self.model:
             # Simple fallback if no AI available
+            # Enhanced fallback for follow-up detection when AI is unavailable
+            query_lower = query.lower()
+            
+            # Age appropriateness questions
+            age_questions = ['is it for', 'suitable for', 'appropriate for', 'good for', 'ok for']
+            if any(phrase in query_lower for phrase in age_questions):
+                return True
+            
+            # Filtering/refinement phrases  
+            filter_phrases = ['only', 'just', 'but', 'except', 'without', 'more', 'other', 'different']
+            if any(word in query_lower for word in filter_phrases):
+                return True
+                
+            # Recommendation requests about existing results
+            recommendation_phrases = ['which one', 'what do you recommend', 'recommend one', 'pick one', 'which do you']
+            if any(phrase in query_lower for phrase in recommendation_phrases):
+                return True
+            
+            # Short queries are likely follow-ups
             return len(query.split()) <= 3
 
         try:
