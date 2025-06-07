@@ -387,16 +387,26 @@ Return JSON format only."""
             elif idx >= 0 and idx < len(words) - 1:
                 params['director'] = words[idx + 1]
 
-        # Quick country detection
-        countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'singaphore', 'korean', 'chinese', 'indian', 'italian', 'spanish']
+        # Quick country detection with fuzzy matching
+        countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'korean', 'chinese', 'indian', 'italian', 'spanish']
+        
+        # Check for exact matches first
         for country in countries:
             if country in query_lower or f'from {country}' in query_lower or f'origin from {country}' in query_lower:
-                # Handle misspelling
-                if country == 'singaphore':
-                    params['country'] = 'Singapore'
-                else:
-                    params['country'] = country.capitalize()
+                params['country'] = country.capitalize()
                 break
+        
+        # If no exact match, try fuzzy matching
+        if not params.get('country'):
+            words = query_lower.split()
+            for word in words:
+                if len(word) > 4:  # Only check longer words
+                    for country in countries:
+                        if self.fuzzy_match(word, [country], threshold=0.8):
+                            params['country'] = country.capitalize()
+                            break
+                    if params.get('country'):
+                        break
 
         # Quick popularity detection
         if any(w in query_lower for w in ['popular', 'top', 'best']):
