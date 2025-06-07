@@ -365,22 +365,26 @@ Return JSON format only."""
         if 'starring' in query_lower:
             words = query.split()
             idx = next((i for i, w in enumerate(words) if w.lower() == 'starring'), -1)
-            if idx >= 0 and idx < len(words) - 1:
+            if idx >= 0 and idx < len(words) - 2:
+                params['actor'] = f"{words[idx + 1]} {words[idx + 2]}"
+            elif idx >= 0 and idx < len(words) - 1:
                 params['actor'] = words[idx + 1]
         
         # Quick director detection  
         if 'director' in query_lower:
             words = query.split()
             idx = next((i for i, w in enumerate(words) if w.lower() == 'director'), -1)
-            if idx >= 0 and idx < len(words) - 1:
+            if idx >= 0 and idx < len(words) - 2:
+                params['director'] = f"{words[idx + 1]} {words[idx + 2]}"
+            elif idx >= 0 and idx < len(words) - 1:
                 params['director'] = words[idx + 1]
 
         # Quick country detection
-        if any(c in query_lower for c in ['american', 'british', 'french', 'german', 'japanese']):
-            for country in ['american', 'british', 'french', 'german', 'japanese']:
-                if country in query_lower:
-                    params['country'] = country.capitalize()
-                    break
+        countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'korean', 'chinese', 'indian', 'italian', 'spanish']
+        for country in countries:
+            if country in query_lower or f'from {country}' in query_lower or f'origin from {country}' in query_lower:
+                params['country'] = country.capitalize()
+                break
 
         # Quick popularity detection
         if any(w in query_lower for w in ['popular', 'top', 'best']):
