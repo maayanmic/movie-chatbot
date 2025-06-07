@@ -201,17 +201,32 @@ Respond in JSON format only."""
             if params['genre']:
                 break
         
-        # Year detection
-        year_patterns = [
-            r'from (\d{4})', r'since (\d{4})', r'after (\d{4})',
-            r'in (\d{4})', r'(\d{4}) movies', r'released in (\d{4})'
+        # Year range detection (2014-2016, from 2014 to 2016, etc.)
+        range_patterns = [
+            r'(\d{4})\s*-\s*(\d{4})',  # 2014-2016
+            r'from\s+(\d{4})\s+to\s+(\d{4})',  # from 2014 to 2016
+            r'between\s+(\d{4})\s+and\s+(\d{4})'  # between 2014 and 2016
         ]
-        for pattern in year_patterns:
+        for pattern in range_patterns:
             match = re.search(pattern, query_lower)
             if match:
-                year = int(match.group(1))
-                params['year_range'] = [year, year]
+                start_year = int(match.group(1))
+                end_year = int(match.group(2))
+                params['year_range'] = [start_year, end_year]
                 break
+        
+        # Single year detection (only if no range found)
+        if not params.get('year_range'):
+            year_patterns = [
+                r'from (\d{4})', r'since (\d{4})', r'after (\d{4})',
+                r'in (\d{4})', r'(\d{4}) movies', r'released in (\d{4})'
+            ]
+            for pattern in year_patterns:
+                match = re.search(pattern, query_lower)
+                if match:
+                    year = int(match.group(1))
+                    params['year_range'] = [year, year]
+                    break
         
         # Popular/rating detection
         if any(word in query_lower for word in ['popular', 'top', 'best', 'highest rated']):
@@ -362,6 +377,21 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                     params['age_group'] = 'Adults'
                     print(f"DEBUG: Inherited age_group 'Adults' from context")
 
+        # Also check Assistant responses for age group context
+        for line in lines:
+            line_lower = line.lower()
+            if 'assistant:' in line_lower:
+                assistant_part = line_lower.split('assistant:')[-1].strip()
+                
+                # Check for age group in assistant responses
+                if not params.get('age_group'):
+                    if any(phrase in assistant_part for phrase in ['suitable for kids', 'for kids', 'children & family']):
+                        params['age_group'] = 'Kids'
+                        print(f"DEBUG: Inherited age_group 'Kids' from assistant response")
+                    elif any(phrase in assistant_part for phrase in ['suitable for adults', 'for adults']):
+                        params['age_group'] = 'Adults'
+                        print(f"DEBUG: Inherited age_group 'Adults' from assistant response")
+
         # Fallback: check entire context if no user queries found
         if not params.get('genre'):
             for genre, keywords in genre_keywords.items():
@@ -369,6 +399,15 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                     params['genre'] = genre
                     print(f"DEBUG: Inherited genre '{genre}' from general context")
                     break
+
+        # Fallback for age group from entire context
+        if not params.get('age_group'):
+            if any(word in context_lower for word in ['kids', 'children', 'family']):
+                params['age_group'] = 'Kids'
+                print(f"DEBUG: Inherited age_group 'Kids' from general context")
+            elif any(word in context_lower for word in ['adults', 'adult']):
+                params['age_group'] = 'Adults'
+                print(f"DEBUG: Inherited age_group 'Adults' from general context")
 
         return params
 
