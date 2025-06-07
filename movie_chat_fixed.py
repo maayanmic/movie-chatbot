@@ -124,13 +124,21 @@ Respond in JSON format only."""
             'runtime_operator': None, 'description_keywords': [], 'intent': 'recommend'
         }
         
-        # Use description keywords to let the filter handle the search algorithmically
-        # This avoids hardcoded keyword lists and uses the actual movie data
-        query_words = query.lower().split()
+        query_lower = query.lower()
         
-        # Extract meaningful words (not stop words)
+        # Check if query contains genre terms by looking at actual genre values in dataset
+        if hasattr(self, 'movies_df') and not self.movies_df.empty:
+            unique_genres = self.movies_df['genre'].dropna().unique()
+            for genre in unique_genres:
+                if genre.lower() in query_lower:
+                    params['genre'] = genre
+                    print(f"DEBUG: Found genre match: {genre}")
+                    return params
+        
+        # If no genre match, use description keywords approach
+        query_words = query_lower.split()
         stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 
-                     'what', 'are', 'is', 'movies', 'movie', 'good', 'best', 'find', 'show', 'me'}
+                     'what', 'are', 'is', 'movies', 'movie', 'good', 'best', 'find', 'show', 'me', 'give', 'list'}
         
         meaningful_words = [word for word in query_words if word not in stop_words and len(word) > 2]
         
@@ -146,8 +154,15 @@ Respond in JSON format only."""
         
         filtered = self.movies_df.copy()
         
+        # Genre filtering
+        if params.get('genre'):
+            genre = params['genre']
+            print(f"DEBUG: Filtering by genre: {genre}")
+            filtered = filtered[filtered['genre'].str.contains(genre, case=False, na=False)]
+            print(f"DEBUG: After genre filtering: {len(filtered)} movies")
+        
         # Description keywords filtering - algorithmic search through actual data
-        if params.get('description_keywords'):
+        elif params.get('description_keywords'):
             keywords = params['description_keywords']
             print(f"DEBUG: Filtering by description keywords: {keywords}")
             
