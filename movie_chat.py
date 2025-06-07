@@ -203,33 +203,25 @@ Return JSON format only."""
         # (beyond what was extracted from context)
         query_lower = query.lower()
         
-        # Check for negative feedback - if user doesn't like previous recommendations
-        negative_feedback = [
-            'not good', 'dont like', "don't like", 'different', 'other', 
-            'something else', 'not interested', 'boring', 'not what i want',
-            'change topic', 'try again', 'no thanks', 'not these', 'לא טוב',
-            'לא אוהב', 'משהו אחר', 'לא מעניין', 'נסה שוב'
-        ]
-        
-        is_negative_feedback = any(pattern in query_lower for pattern in negative_feedback)
-        
-        if is_negative_feedback and conversation_context:
-            # If user gives negative feedback, suggest alternative genres
-            params['intent'] = 'suggest_alternatives'
-            print("DEBUG: Detected negative feedback, will suggest alternatives")
-            return params
-        
-        # Check for similarity requests
-        similarity_patterns = ['similar to', 'like', 'reminds me of', 'דומה ל', 'כמו']
-        for pattern in similarity_patterns:
-            if pattern in query_lower:
-                # Extract movie name for similarity search
-                pattern_idx = query_lower.find(pattern)
-                movie_name = query_lower[pattern_idx + len(pattern):].strip()
-                if movie_name:
-                    params['similar_to'] = movie_name
-                    print(f"DEBUG: Detected similarity request for: {movie_name}")
-                    break
+        # Simple age detection for kids content
+        age_indicators = ['year old', 'years old', 'month old', 'months old', 'baby', 'toddler', 'infant']
+        for indicator in age_indicators:
+            if indicator in query_lower:
+                # Extract age if mentioned
+                import re
+                age_match = re.search(r'(\d+)\s*(year|month)', query_lower)
+                if age_match:
+                    age_num = int(age_match.group(1))
+                    age_unit = age_match.group(2)
+                    
+                    # Convert to approximate age groups
+                    if (age_unit == 'month' and age_num <= 24) or (age_unit == 'year' and age_num <= 2):
+                        params['age_group'] = 'Kids'
+                        print(f"DEBUG: Detected very young age ({age_num} {age_unit}), setting to Kids")
+                    elif age_unit == 'year' and age_num <= 12:
+                        params['age_group'] = 'Kids'
+                        print(f"DEBUG: Detected child age ({age_num} {age_unit}), setting to Kids")
+                break
         
         # Kids/Family detection
         kids_indicators = [
@@ -263,10 +255,8 @@ Return JSON format only."""
 
         for genre, keywords in genre_keywords.items():
             for word in query_words:
-                # Skip common words that might cause false matches
-                if word in ['year', 'old', 'new', 'good', 'best', 'great', 'nice']:
-                    continue
-                if self.fuzzy_match(word, keywords, threshold=0.6):
+                # Use higher threshold for more accurate matching
+                if len(word) >= 3 and self.fuzzy_match(word, keywords, threshold=0.8):
                     params['genre'] = genre.title()
                     break
             if params['genre']:
