@@ -18,15 +18,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Simple Movie Chat"
+args = "Movie Chat"
 
 [[workflows.workflow]]
-name = "Simple Movie Chat"
+name = "Movie Chat"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python structured_app.py"
+args = "python movie_app.py"
 waitForPort = 5000
 
 [[ports]]
