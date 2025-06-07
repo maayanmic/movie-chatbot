@@ -315,7 +315,7 @@
                 }
 
                 const data = await response.json();
-                return data.recommendation;
+                return data.response;
             } catch (error) {
                 console.error('Error:', error);
                 return 'Sorry, I encountered an error while processing your request. Please try again.';
