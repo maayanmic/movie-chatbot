@@ -527,16 +527,17 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                 
                 print(f"DEBUG: After description filtering: {len(filtered)} movies")
         
-        # Age-appropriate content filtering
-        if params.get('age_group') == 'Kids':
-            # Remove Stand-Up Comedy content which is not suitable for children
-            kids_filter = ~filtered['genre'].str.contains('Stand-Up Comedy', case=False, na=False)
-            filtered = filtered[kids_filter]
-            print(f"DEBUG: After removing inappropriate content for kids: {len(filtered)} movies")
-        elif params.get('age_group') == 'Adults':
-            # For adults, include mature content and remove children-only content if they want sophisticated content
-            print(f"DEBUG: Filtering for adult content - including all genres including mature content")
-            # Adults can watch everything, so no filtering needed - just log for transparency
+        # Age group filtering using the actual age_group column
+        if params.get('age_group'):
+            requested_age = params['age_group']
+            print(f"DEBUG: Filtering by age_group: {requested_age}")
+            
+            if 'age_group' in filtered.columns:
+                age_filter = filtered['age_group'] == requested_age
+                filtered = filtered[age_filter]
+                print(f"DEBUG: After age_group filtering: {len(filtered)} movies for {requested_age}")
+            else:
+                print(f"DEBUG: age_group column not found, skipping age filtering")
         
         # Apply weighted scoring and sort (70% popularity, 30% year)
         if not filtered.empty and 'popular' in filtered.columns and 'released' in filtered.columns:
