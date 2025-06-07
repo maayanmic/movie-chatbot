@@ -6,11 +6,16 @@
 - מפתח Gemini API
 
 ## התקנה
+
+### אופציה 1 - עם requirements.txt (מומלץ):
+```bash
+pip install -r project_requirements.txt
+```
+
+### אופציה 2 - התקנה ידנית:
 ```bash
 pip install flask pandas google-generativeai
 ```
-
-**חשוב**: ודאי שכל החבילות מותקנות לפני הרצת הקוד.
 
 ## הגדרת מפתח API
 הגדירי משתנה סביבה עם מפתח Gemini:
