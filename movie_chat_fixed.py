@@ -130,13 +130,7 @@ Respond in JSON format only."""
             'intent': 'recommend'
         }
 
-        # Check if this is a follow-up query based on conversation context
-        if conversation_context:
-            if self.is_followup_query(query, conversation_context):
-                context_params = self.extract_context_parameters(conversation_context)
-                params.update(context_params)
-
-        # Extract additional parameters from the current query itself
+        # Extract parameters from the current query FIRST (higher priority)
         query_lower = query.lower()
 
         # Simple age detection for kids content
@@ -233,6 +227,17 @@ Respond in JSON format only."""
             params['popular'] = 'high'
         elif any(word in query_lower for word in ['bad', 'worst', 'lowest rated']):
             params['popular'] = 'low'
+
+        # AFTER processing current query, inherit missing parameters from context
+        # This ensures current query parameters have priority
+        if conversation_context:
+            if self.is_followup_query(query, conversation_context):
+                context_params = self.extract_context_parameters(conversation_context)
+                # Only inherit parameters that weren't found in current query
+                for key, value in context_params.items():
+                    if params.get(key) is None and value is not None:
+                        params[key] = value
+                        print(f"DEBUG: Inherited {key} '{value}' from context (current query had priority)")
 
         return params
     
@@ -392,13 +397,8 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                         params['age_group'] = 'Adults'
                         print(f"DEBUG: Inherited age_group 'Adults' from assistant response")
 
-        # Fallback: check entire context if no user queries found
-        if not params.get('genre'):
-            for genre, keywords in genre_keywords.items():
-                if any(keyword in context_lower for keyword in keywords):
-                    params['genre'] = genre
-                    print(f"DEBUG: Inherited genre '{genre}' from general context")
-                    break
+        # DON'T inherit genres from entire context to avoid conflicts with current query
+        # Only inherit from explicit user queries
 
         # Fallback for age group from entire context
         if not params.get('age_group'):
