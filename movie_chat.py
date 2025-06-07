@@ -361,31 +361,51 @@ Return JSON format only."""
             # Set to recent years (2019-2021)
             params['year_range'] = [2019, 2021]
 
-        # Quick actor detection
-        if 'starring' in query_lower:
-            words = query.split()
-            idx = next((i for i, w in enumerate(words) if w.lower() == 'starring'), -1)
-            if idx >= 0 and idx < len(words) - 2:
-                params['actor'] = f"{words[idx + 1]} {words[idx + 2]}"
-            elif idx >= 0 and idx < len(words) - 1:
-                params['actor'] = words[idx + 1]
+        # Quick actor detection with fuzzy matching
+        actor_keywords = ['starring', 'with', 'featuring']
+        for keyword in actor_keywords:
+            if keyword in query_lower or any(self.fuzzy_match(word, [keyword], threshold=0.8) for word in query_lower.split()):
+                words = query.split()
+                # Find the keyword position (exact or fuzzy)
+                idx = -1
+                for i, word in enumerate(words):
+                    if word.lower() == keyword or self.fuzzy_match(word.lower(), [keyword], threshold=0.8):
+                        idx = i
+                        break
+                
+                if idx >= 0 and idx < len(words) - 2:
+                    params['actor'] = f"{words[idx + 1]} {words[idx + 2]}"
+                elif idx >= 0 and idx < len(words) - 1:
+                    params['actor'] = words[idx + 1]
+                break
         
-        # Quick director detection  
-        if 'director is' in query_lower:
-            parts = query_lower.split('director is')
-            if len(parts) > 1:
-                director_part = parts[1].strip().split()[0:2]  # Get first 2 words after "director is"
-                if len(director_part) >= 2:
-                    params['director'] = f"{director_part[0].title()} {director_part[1].title()}"
-                elif len(director_part) == 1:
-                    params['director'] = director_part[0].title()
-        elif 'director' in query_lower:
-            words = query.split()
-            idx = next((i for i, w in enumerate(words) if w.lower() == 'director'), -1)
-            if idx >= 0 and idx < len(words) - 2:
-                params['director'] = f"{words[idx + 1]} {words[idx + 2]}"
-            elif idx >= 0 and idx < len(words) - 1:
-                params['director'] = words[idx + 1]
+        # Quick director detection with fuzzy matching
+        director_keywords = ['director', 'directed']
+        for keyword in director_keywords:
+            # Check for "director is" pattern first
+            if f'{keyword} is' in query_lower:
+                parts = query_lower.split(f'{keyword} is')
+                if len(parts) > 1:
+                    director_part = parts[1].strip().split()[0:2]
+                    if len(director_part) >= 2:
+                        params['director'] = f"{director_part[0].title()} {director_part[1].title()}"
+                    elif len(director_part) == 1:
+                        params['director'] = director_part[0].title()
+                break
+            # Check for fuzzy match of keyword
+            elif keyword in query_lower or any(self.fuzzy_match(word, [keyword], threshold=0.8) for word in query_lower.split()):
+                words = query.split()
+                idx = -1
+                for i, word in enumerate(words):
+                    if word.lower() == keyword or self.fuzzy_match(word.lower(), [keyword], threshold=0.8):
+                        idx = i
+                        break
+                
+                if idx >= 0 and idx < len(words) - 2:
+                    params['director'] = f"{words[idx + 1]} {words[idx + 2]}"
+                elif idx >= 0 and idx < len(words) - 1:
+                    params['director'] = words[idx + 1]
+                break
 
         # Quick country detection with fuzzy matching
         countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'korean', 'chinese', 'indian', 'italian', 'spanish']
