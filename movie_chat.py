@@ -721,12 +721,8 @@ Examples:
         if self.is_analytical_question(original_query):
             return self.generate_analytical_response(filtered_movies, original_query)
         else:
-            # Basic movie list response with interactive questions
-            response = self.generate_fallback_response(filtered_movies, params)
-            follow_up = self.add_interactive_questions(params, len(filtered_movies))
-            if follow_up:
-                response += follow_up
-            return response
+            # Basic movie list response
+            return self.generate_fallback_response(filtered_movies, params)
 
     def is_analytical_question(self, query):
         """Check if the query is asking for analysis rather than recommendations using Gemini."""
@@ -870,43 +866,6 @@ Be friendly but CONCISE. Keep it short and helpful."""
 
         return response
 
-
-    def add_interactive_questions(self, params, num_results):
-        """Add contextual follow-up questions to guide the conversation."""
-        questions = []
-        
-        # If user specified age but not much else, ask for more details
-        if params and params.get('age_group') and not params.get('genre') and not params.get('year_range'):
-            if params['age_group'] == 'Young Adults':
-                questions.append("איזה סוג סרט את מעדיפה? רומנטי, אקשן או קומדיה?")
-            elif params['age_group'] == 'Kids':
-                questions.append("תרצי משהו יותר אנימציה או סרט משפחתי רגיל?")
-            elif params['age_group'] == 'Teens':
-                questions.append("בא לך משהו עם רומנטיקה או יותר הרפתקאות?")
-        
-        # If user specified genre but not much else
-        if params and params.get('genre') and not params.get('runtime') and not params.get('year_range'):
-            if params['genre'].lower() in ['comedy', 'romance']:
-                questions.append("איך בא לך - סרט קצר (עד 90 דקות) או משהו יותר ארוך?")
-            elif params['genre'].lower() == 'action':
-                questions.append("מעדיף אקשן מודרני או קלאסי? איזה שנים?")
-        
-        # If lots of results, help narrow down
-        if num_results > 8:
-            questions.append("יש לך שחקן או שחקנית מועדפת? או תקופה ספציפית?")
-        
-        # If few results, offer alternatives
-        if num_results <= 3 and num_results > 0:
-            questions.append("אם אף אחד מהאלה לא מעניין אותך, אני יכול להציע משהו דומה.")
-        
-        # General engagement question for moderate results
-        if not questions and 4 <= num_results <= 8:
-            questions.append("איזה מהסרטים האלה נראה לך הכי מעניין?")
-        
-        if questions:
-            return f"\n\n{questions[0]}"
-        
-        return ""
 
 
 def initialize_system():
