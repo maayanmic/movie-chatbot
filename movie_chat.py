@@ -570,9 +570,12 @@ Examples:
             
             # Check if this is an analytical question first (before filtering)
             if conversation_context and self.is_analytical_question(user_query):
-                # For analytical questions, use previous search results from context
-                context_to_use = conversation_context if is_followup else ""
-                params = self.extract_query_parameters(user_query, context_to_use)
+                # For analytical questions, use the ORIGINAL search parameters from context
+                # Extract the original parameters that were used in the previous search
+                params = self.extract_context_parameters(conversation_context)
+                if not params:
+                    # Fallback: extract from current query with context
+                    params = self.extract_query_parameters(user_query, conversation_context)
                 filtered_movies = self.filter_movies(params)
                 return self.generate_analytical_response(filtered_movies, user_query)
 
