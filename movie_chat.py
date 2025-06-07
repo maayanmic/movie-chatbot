@@ -580,8 +580,13 @@ Examples:
             if any(keyword in user_query.lower() for keyword in off_topic_keywords):
                 return "I'm sorry, but I specialize only in the world of movies. Please ask me about movie recommendations, actors, directors, or anything related to films!"
 
+            # Check if this is a follow-up query or new topic
+            is_followup = self.is_followup_query(user_query, conversation_context) if conversation_context else False
+            
             # Extract parameters from query
-            params = self.extract_query_parameters(user_query, conversation_context)
+            # Only pass context if it's a follow-up query
+            context_to_use = conversation_context if is_followup else ""
+            params = self.extract_query_parameters(user_query, context_to_use)
 
             # Handle off-topic intent
             if params.get('intent') == 'off_topic':
