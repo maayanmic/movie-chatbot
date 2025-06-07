@@ -668,7 +668,7 @@ Answer in 1-2 sentences max. Be direct and helpful."""
         # Check if this is an analytical question first
         if conversation_context and self.is_analytical_question(user_query):
             # For analytical questions, use the previous search results
-            params = self.extract_query_parameters(conversation_context, "")
+            params = self.extract_query_parameters(user_query, conversation_context)
             filtered_movies = self.filter_movies(params)
             return self.generate_analytical_response(filtered_movies, user_query, conversation_context)
 
