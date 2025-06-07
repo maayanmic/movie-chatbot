@@ -736,10 +736,12 @@ def setup_routes():
         if not conversation_memory[user_id]:
             return ""
 
+        # For better context quality, return only the last conversation
+        # This prevents confusion between different topics/genres
         context = "Previous conversation:\n"
-        for conv in conversation_memory[user_id][-3:]:  # Last 3 conversations
-            context += f"User: {conv['user_query']}\n"
-            context += f"Assistant: {conv['response'][:150]}...\n\n"
+        last_conv = conversation_memory[user_id][-1]  # Only last conversation
+        context += f"User: {last_conv['user_query']}\n"
+        context += f"Assistant: {last_conv['response'][:150]}...\n\n"
 
         return context
 
