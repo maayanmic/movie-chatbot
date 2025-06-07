@@ -191,23 +191,31 @@ Return JSON format only."""
             if params['genre']:
                 break
 
-        # Extract keywords for description search
+        # Extract keywords for description search - improved to catch more patterns
         description_keywords = []
         query_lower = query.lower()
+        
+        # Look for story patterns
         story_indicators = ['about', 'movie about', 'film about', 'story of', 'follows', 'centers on']
-
+        
         for indicator in story_indicators:
             if indicator in query_lower:
                 start_pos = query_lower.find(indicator) + len(indicator)
                 remaining_text = query[start_pos:].strip()
                 words = remaining_text.split()
-                meaningful_words = [word for word in words if len(word) > 3 and
-                                  word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which']]
-                description_keywords.extend(meaningful_words[:5])
+                meaningful_words = [word for word in words if len(word) > 2 and  # Changed from 3 to 2
+                                  word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which', 'and', 'the', 'his', 'her']]
+                description_keywords.extend(meaningful_words[:7])  # Increased from 5 to 7
                 break
+        
+        # Also look for specific key terms in the query
+        key_terms = ['doctor', 'psychiatrist', 'missing', 'wife', 'treat', 'medical', 'condition', 'patient']
+        for term in key_terms:
+            if term in query_lower and term not in description_keywords:
+                description_keywords.append(term)
 
         if description_keywords:
-            params['description_keywords'] = description_keywords
+            params['description_keywords'] = description_keywords[:7]  # Limit to 7 terms
 
         return params
 
@@ -465,16 +473,8 @@ def setup_routes():
                     conversation_memory[user_id] = []
                 return jsonify({'recommendation': 'Conversation reset successfully'})
 
-            # Get conversation context
-            context = get_conversation_context(user_id)
-
-            # Enhance query with context if available
-            enhanced_query = query
-            if context:
-                enhanced_query = f"Previous context: {context}\n\nCurrent question: {query}"
-
-            # Get movie recommendation
-            recommendation = recommender.get_recommendation(enhanced_query)
+            # Get movie recommendation without context for better results
+            recommendation = recommender.get_recommendation(query)
 
             # Save conversation to memory
             save_conversation(user_id, query, recommendation)
