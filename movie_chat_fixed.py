@@ -158,9 +158,21 @@ Respond in JSON format only."""
             'children can watch', 'kids can watch', 'child friendly'
         ]
 
+        # Adults detection
+        adults_indicators = [
+            'for adults', 'suit for adults', 'suitable for adults', 'adult movies',
+            'adults only', 'mature content', 'grown ups'
+        ]
+
         for indicator in kids_indicators:
             if indicator in query_lower:
                 params['age_group'] = 'Kids'
+                break
+                
+        for indicator in adults_indicators:
+            if indicator in query_lower:
+                params['age_group'] = 'Adults'
+                print(f"DEBUG: Detected adults request from current query: {indicator}")
                 break
 
         # Genre detection using fuzzy matching
@@ -258,9 +270,42 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                 response = self.model.generate_content(prompt)
                 return "FOLLOWUP" in response.text.upper()
             else:
-                # Basic heuristics
-                followup_words = ['which', 'what about', 'tell me about', 'more about', 'from', 'in', 'only', 'just']
-                return any(word in query.lower() for word in followup_words)
+                # Enhanced heuristics for followup detection
+                if not context:
+                    return False
+                    
+                query_lower = query.lower().strip()
+                
+                # Strong followup indicators
+                strong_indicators = [
+                    'that suit', 'suit for', 'from that list', 'from those', 'of those',
+                    'which one', 'what about', 'tell me about', 'more about',
+                    'from the', 'of the', 'that are', 'those that'
+                ]
+                
+                # Year/time indicators  
+                import re
+                year_patterns = [
+                    r'from \d{4}', r'in \d{4}', r'after \d{4}', r'before \d{4}',
+                    r'\d{4}-\d{4}', r'between \d{4}'
+                ]
+                
+                # Check strong indicators
+                for indicator in strong_indicators:
+                    if indicator in query_lower:
+                        return True
+                
+                # Check year patterns
+                for pattern in year_patterns:
+                    if re.search(pattern, query_lower):
+                        return True
+                
+                # Short queries with weak indicators
+                if len(query_lower.split()) <= 4:
+                    weak_indicators = ['from', 'in', 'only', 'just', 'for', 'with']
+                    return any(word in query_lower for word in weak_indicators)
+                
+                return False
         except:
             return False
 
@@ -290,14 +335,40 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
             'family': ['family']
         }
 
-        for genre, keywords in genre_keywords.items():
-            if any(keyword in context_lower for keyword in keywords):
-                params['genre'] = genre
-                break
+        # Look for user queries in context to extract parameters
+        lines = context.split('\n')
+        for line in lines:
+            line_lower = line.lower()
+            
+            # Extract from user queries specifically
+            if 'user:' in line_lower:
+                user_part = line_lower.split('user:')[-1].strip()
+                
+                # Check for genres in user queries
+                for genre, keywords in genre_keywords.items():
+                    for keyword in keywords:
+                        if keyword in user_part:
+                            params['genre'] = genre
+                            print(f"DEBUG: Inherited genre '{genre}' from context user query")
+                            break
+                    if params.get('genre'):
+                        break
+                
+                # Check for age group in user queries
+                if any(word in user_part for word in ['kids', 'children', 'family']):
+                    params['age_group'] = 'Kids'
+                    print(f"DEBUG: Inherited age_group 'Kids' from context")
+                elif any(word in user_part for word in ['adults', 'adult']):
+                    params['age_group'] = 'Adults'
+                    print(f"DEBUG: Inherited age_group 'Adults' from context")
 
-        # Extract age group from context
-        if any(word in context_lower for word in ['kids', 'children', 'family']):
-            params['age_group'] = 'Kids'
+        # Fallback: check entire context if no user queries found
+        if not params.get('genre'):
+            for genre, keywords in genre_keywords.items():
+                if any(keyword in context_lower for keyword in keywords):
+                    params['genre'] = genre
+                    print(f"DEBUG: Inherited genre '{genre}' from general context")
+                    break
 
         return params
 
@@ -456,12 +527,16 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
                 
                 print(f"DEBUG: After description filtering: {len(filtered)} movies")
         
-        # Filter out inappropriate content for kids
+        # Age-appropriate content filtering
         if params.get('age_group') == 'Kids':
             # Remove Stand-Up Comedy content which is not suitable for children
             kids_filter = ~filtered['genre'].str.contains('Stand-Up Comedy', case=False, na=False)
             filtered = filtered[kids_filter]
             print(f"DEBUG: After removing inappropriate content for kids: {len(filtered)} movies")
+        elif params.get('age_group') == 'Adults':
+            # For adults, include mature content and remove children-only content if they want sophisticated content
+            print(f"DEBUG: Filtering for adult content - including all genres including mature content")
+            # Adults can watch everything, so no filtering needed - just log for transparency
         
         # Apply weighted scoring and sort (70% popularity, 30% year)
         if not filtered.empty and 'popular' in filtered.columns and 'released' in filtered.columns:
