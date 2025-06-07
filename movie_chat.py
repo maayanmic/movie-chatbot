@@ -738,15 +738,13 @@ SEARCH examples:
 Here are the movies from their previous search:
 {movies_data}
 
-Respond naturally and conversationally. Examples:
+Give a SHORT, conversational response (2-3 sentences max). Examples:
 
-User asks "which one you recommend?" or "pick one for me" → Choose one specific movie and explain why it's a good choice based on its qualities.
+User asks "which one you recommend?" → Pick ONE movie and briefly explain why
+User asks "are they suitable for kids?" → Simple yes/no with quick reason
+User asks about ratings → Brief comparison or explanation
 
-User asks "they are all suit for kids?" → Look at the genres and content, then give a clear yes/no answer with brief explanation.
-
-User asks about ratings/popularity → Explain what the ratings mean and compare the movies.
-
-Be friendly, helpful, and specific. Don't just list movies - have a conversation and make recommendations like a knowledgeable friend would."""
+Be friendly but CONCISE. Keep it short and helpful."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
