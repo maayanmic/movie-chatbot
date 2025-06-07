@@ -303,68 +303,77 @@ Return JSON format only."""
         return params
 
     def is_followup_query(self, query, context):
-        """Check if the current query is a follow-up to previous conversation."""
+        """Check if the current query is a follow-up to previous conversation using Gemini."""
+        if not context.strip():
+            return False
+            
+        try:
+            # Use Gemini to intelligently determine if this is a follow-up
+            prompt = f"""
+            Analyze if the current user query is a follow-up to the previous conversation or a new topic.
+
+            Previous conversation context:
+            {context}
+
+            Current user query: "{query}"
+
+            Return ONLY a JSON object with:
+            {{
+                "is_followup": true/false,
+                "reasoning": "brief explanation"
+            }}
+
+            Examples:
+            - "only romantic" after discussing kids movies → {{"is_followup": true, "reasoning": "refining previous search"}}
+            - "from 2019" after movie recommendations → {{"is_followup": true, "reasoning": "adding year filter"}}
+            - "What action movies do you recommend?" → {{"is_followup": false, "reasoning": "new topic request"}}
+            - "I want comedy movies" → {{"is_followup": false, "reasoning": "completely new request"}}
+            """
+            
+            response = self.model.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            # Clean JSON response
+            if response_text.startswith('```json'):
+                response_text = response_text[7:-3].strip()
+            elif response_text.startswith('```'):
+                response_text = response_text[3:-3].strip()
+            
+            import json
+            result = json.loads(response_text)
+            is_followup = result.get('is_followup', False)
+            reasoning = result.get('reasoning', '')
+            
+            print(f"DEBUG: Gemini followup analysis - Is followup: {is_followup}, Reasoning: {reasoning}")
+            return is_followup
+            
+        except Exception as e:
+            print(f"DEBUG: Gemini followup detection failed: {str(e)}, using fallback")
+            # Fallback to simple heuristics
+            return self._fallback_followup_detection(query)
+    
+    def _fallback_followup_detection(self, query):
+        """Simple fallback followup detection when Gemini fails."""
         query_lower = query.lower().strip()
         
-        # First check for new topic indicators - if present, it's NOT a follow-up
-        new_topic_indicators = [
-            'recommend', 'suggest', 'what movies', 'find me', 'show me',
-            'i want', 'i need', 'looking for', 'search for', 'give me',
-            'can you recommend', 'any good', 'what are some', 'tell me about',
-            'help me find', 'i like', 'love', 'favorite', 'best movies'
-        ]
-        
-        for indicator in new_topic_indicators:
-            if indicator in query_lower:
-                print(f"DEBUG: Detected new topic indicator: '{indicator}' - NOT a follow-up")
-                return False
-        
-        # If query is very long (>6 words), it's likely a new request
-        if len(query_lower.split()) > 6:
-            print(f"DEBUG: Long query ({len(query_lower.split())} words) - likely new topic")
-            return False
-        
-        # Check for follow-up indicators
-        followup_indicators = [
-            'only', 'just', 'from', 'in', 'with', 'by', 'after', 'before',
-            'newer', 'older', 'recent', 'latest', 'also', 'too', 'and',
-            'but', 'however', 'except', 'without', 'plus', 'for'
-        ]
-        
-        # Short queries with follow-up indicators are likely follow-ups
-        if len(query_lower.split()) <= 4:
-            for indicator in followup_indicators:
-                if (query_lower.startswith(indicator + ' ') or 
-                    f' {indicator} ' in f' {query_lower} ' or 
-                    query_lower == indicator or
-                    query_lower.startswith(indicator)):
+        # Very short queries with common follow-up words
+        simple_followup_indicators = ['only', 'just', 'from', 'and', 'but', 'also']
+        if len(query_lower.split()) <= 3:
+            for indicator in simple_followup_indicators:
+                if query_lower.startswith(indicator + ' '):
                     return True
         
-        # Check for year patterns (2019, 2020, etc.)
+        # Year patterns
         import re
         if re.search(r'\b(19|20)\d{2}\b', query):
             return True
-        
-        # Check for refinement queries - patterns that indicate filtering/refining
-        refinement_patterns = [
-            'for kids', 'for children', 'suitable for', 'that will suit', 
-            'appropriate for', 'family friendly', 'children can watch', 
-            'from the', 'in the', 'by the', 'with the', 'about',
-            'starring', 'directed by', 'similar to', 'like that',
-            'that are', 'which are', 'more like', 'something like'
-        ]
-        
-        # Check for negative feedback patterns
-        negative_patterns = [
-            'not good', 'dont like', "don't like", 'different', 'other', 
-            'something else', 'not interested', 'boring', 'not what i want',
-            'change topic', 'try again', 'no thanks', 'not these'
-        ]
-        
-        for pattern in refinement_patterns + negative_patterns:
-            if pattern in query_lower:
-                return True
             
+        # New topic indicators
+        new_topic_words = ['recommend', 'suggest', 'what movies', 'i want', 'i need']
+        for word in new_topic_words:
+            if word in query_lower:
+                return False
+        
         return False
 
     def extract_context_parameters(self, context):
