@@ -303,35 +303,63 @@ Return JSON format only."""
         return params
 
     def is_followup_query(self, query, context):
-        """Check if the current query is a follow-up to previous conversation using Gemini."""
+        """Check if the current query is a follow-up to previous conversation using algorithmic approach."""
         if not context.strip():
             return False
         
-        # Always use general algorithmic approach - check if query is short and simple
-        # This indicates it's likely a follow-up rather than a complete new request
-        query_words = query.strip().split()
+        query_lower = query.lower().strip()
+        query_words = query_lower.split()
         
-        # Very long queries (>7 words) are usually new complete requests
-        if len(query_words) > 7:
-            print(f"DEBUG: Long query ({len(query_words)} words) - likely new topic")
-            return False
-        
-        # Use semantic analysis approach: if query contains complete movie request patterns, it's new
-        complete_request_patterns = [
-            'what', 'which', 'can you', 'please', 'help me', 'find me', 'show me',
-            'recommend', 'suggest', 'i want', 'i need', 'looking for'
+        # First check: Strong new topic indicators (regardless of length)
+        strong_new_topic_patterns = [
+            'what movies', 'which movies', 'can you recommend', 'please recommend',
+            'help me find', 'find me some', 'show me movies', 'suggest movies',
+            'i want movies', 'i need movies', 'looking for movies'
         ]
         
-        query_lower = query.lower()
-        has_complete_pattern = any(pattern in query_lower for pattern in complete_request_patterns)
+        for pattern in strong_new_topic_patterns:
+            if pattern in query_lower:
+                print(f"DEBUG: Strong new topic pattern '{pattern}' detected")
+                return False
         
-        if has_complete_pattern and len(query_words) > 3:
-            print(f"DEBUG: Complete request pattern detected - new topic")
+        # Second check: Refinement patterns (indicate follow-up regardless of length)
+        refinement_patterns = [
+            'only', 'just', 'but', 'except', 'without', 'also', 'plus',
+            'from', 'in', 'during', 'before', 'after', 'since',
+            'more', 'other', 'different', 'similar', 'like',
+            'newer', 'older', 'recent', 'latest', 'earlier'
+        ]
+        
+        # Check if query starts with refinement pattern or contains it prominently
+        starts_with_refinement = any(query_lower.startswith(pattern + ' ') for pattern in refinement_patterns)
+        contains_refinement = any(f' {pattern} ' in f' {query_lower} ' for pattern in refinement_patterns)
+        
+        if starts_with_refinement or contains_refinement:
+            print(f"DEBUG: Refinement pattern detected - follow-up")
+            return True
+        
+        # Third check: Question about current results
+        result_questions = ['there is', 'any more', 'is there', 'got more', 'have more']
+        if any(pattern in query_lower for pattern in result_questions):
+            print(f"DEBUG: Question about results - follow-up")
+            return True
+        
+        # Fourth check: Complete movie request structure
+        # If query has subject + verb + object structure for movies, it's likely new
+        has_subject_verb = any(word in query_lower for word in ['i want', 'i need', 'i like', 'give me'])
+        has_movie_object = any(word in query_lower for word in ['movies', 'films', 'something'])
+        
+        if has_subject_verb and has_movie_object and len(query_words) > 4:
+            print(f"DEBUG: Complete request structure detected - new topic")
             return False
         
-        # For short queries without complete patterns, assume follow-up
-        # This is the general algorithmic approach - short, incomplete queries are refinements
-        print(f"DEBUG: Short query without complete pattern - likely follow-up")
+        # Default: Short queries without clear new topic structure are follow-ups
+        if len(query_words) <= 4:
+            print(f"DEBUG: Short query without new topic structure - follow-up")
+            return True
+        
+        # For longer queries, check if they lack complete request structure
+        print(f"DEBUG: Longer query without complete structure - follow-up")
         return True
 
 
