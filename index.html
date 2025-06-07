@@ -98,13 +98,18 @@
         .movie-item {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             border-left: 5px solid #667eea;
-            margin: 12px 0;
-            padding: 18px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin: 6px 0;
+            padding: 8px 12px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            max-height: 1cm;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
         }
 
         .movie-item:hover {
@@ -126,43 +131,39 @@
         .movie-title {
             font-weight: bold;
             color: #2c5aa0;
-            font-size: 18px;
-            margin-bottom: 5px;
+            font-size: 15px;
             text-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
 
         .movie-year {
             color: #6c757d;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 12px;
             background-color: #f1f3f4;
-            padding: 3px 8px;
-            border-radius: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
             display: inline-block;
-            margin: 0 5px;
         }
 
         .movie-genre {
             color: #e74c3c;
             font-weight: 600;
             background: linear-gradient(135deg, #ffe6e6 0%, #ffd6d6 100%);
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 13px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
             display: inline-block;
-            margin: 0 3px;
             border: 1px solid #ffc1c1;
         }
 
         .movie-runtime {
             color: #27ae60;
             font-weight: bold;
-            font-size: 13px;
+            font-size: 12px;
             background: linear-gradient(135deg, #e8f8f0 0%, #d4edda 100%);
-            padding: 4px 10px;
-            border-radius: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
             display: inline-block;
-            margin-left: 5px;
             border: 1px solid #c3e6cb;
         }
 

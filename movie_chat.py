@@ -871,13 +871,13 @@ Be friendly but CONCISE. Keep it short and helpful."""
                         hours = runtime_minutes // 60
                         minutes = runtime_minutes % 60
                         if hours > 0:
-                            runtime_text = f" | {hours}h {minutes}m" if minutes > 0 else f" | {hours}h"
+                            runtime_text = f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
                         else:
-                            runtime_text = f" | {minutes}m"
+                            runtime_text = f"{minutes}m"
                 except (ValueError, TypeError):
                     runtime_text = ""
             
-            response += f"• <span class='movie-title'>{movie['name']}</span> <span class='movie-year'>({year})</span> - <span class='movie-genre'>{genre}</span><span class='movie-runtime'>{runtime_text}</span>\n"
+            response += f"• <span class='movie-title'>{movie['name']}</span> <span class='movie-year'>({year})</span> <span class='movie-genre'>{genre}</span><span class='movie-runtime'>{runtime_text}</span>\n"
 
         return response
 
