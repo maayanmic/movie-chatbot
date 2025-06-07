@@ -180,7 +180,7 @@ Return JSON format only."""
             return self.basic_parameter_extraction(user_query, conversation_context)
 
     def basic_parameter_extraction(self, query, conversation_context=""):
-        """Simple fallback when Gemini is not available."""
+        """Basic fallback parameter extraction without AI."""
         params = {
             'age_group': None,
             'genre': None,
@@ -195,31 +195,62 @@ Return JSON format only."""
         
         # Check if this is a follow-up query based on conversation context
         if conversation_context:
-            is_followup = len(query.split()) <= 3  # Simple fallback logic
-            if is_followup:
+            if self.is_followup_query(query, conversation_context):
                 context_params = self.extract_context_parameters(conversation_context)
                 params.update(context_params)
-                print(f"DEBUG: Fallback inherited context parameters")
         
-        # Simple genre detection as last resort
+        # Extract additional parameters from the current query itself 
         query_lower = query.lower()
-        if 'drama' in query_lower:
-            params['genre'] = 'Drama'
-        elif 'comedy' in query_lower:
-            params['genre'] = 'Comedy'
-        elif 'action' in query_lower:
-            params['genre'] = 'Action'
-        elif 'horror' in query_lower:
-            params['genre'] = 'Horror'
-        elif 'romance' in query_lower or 'romantic' in query_lower:
-            params['genre'] = 'Romance'
         
-        # Simple year extraction
+        # Kids/Family detection
+        kids_indicators = [
+            'for kids', 'for children', 'suitable for kids', 'family friendly',
+            'children can watch', 'kids can watch'
+        ]
+        
+        for indicator in kids_indicators:
+            if indicator in query_lower:
+                params['age_group'] = 'Kids'
+                print(f"DEBUG: Detected kids request from current query: {indicator}")
+                break
+
+        # Genre detection using fuzzy matching
+        genre_keywords = {
+            'romance': ['romance', 'romantic'],
+            'action': ['action'],
+            'comedy': ['comedy', 'comedies', 'funny'],
+            'drama': ['drama'],
+            'horror': ['horror', 'scary'],
+            'thriller': ['thriller', 'suspense'],
+            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
+            'fantasy': ['fantasy'],
+            'documentary': ['documentary', 'docu'],
+            'animation': ['animation', 'animated', 'cartoon']
+        }
+
+        # Split query into words for fuzzy matching
+        query_words = query.lower().split()
+
+        for genre, keywords in genre_keywords.items():
+            for word in query_words:
+                # Use higher threshold for more accurate matching
+                if len(word) >= 3 and self.fuzzy_match(word, keywords, threshold=0.8):
+                    params['genre'] = genre.title()
+                    break
+            if params['genre']:
+                break
+
+        # Extract year from current query if present
         import re
         year_match = re.search(r'\b(19|20)(\d{2})\b', query)
         if year_match:
             year = int(year_match.group(0))
             params['year_range'] = [year, year]
+
+        # Handle temporal keywords (recent, latest, new, etc.)
+        if any(word in query_lower for word in ['recent', 'latest', 'new', 'newer']):
+            # Set to recent years (2019-2021)
+            params['year_range'] = [2019, 2021]
 
         return params
 
