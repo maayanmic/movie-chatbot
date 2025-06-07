@@ -353,24 +353,27 @@ Return JSON format only."""
         """Extract relevant parameters from conversation context."""
         params = {}
         
-        # Find the most recent user query from context
+        # Find ALL user queries from context, not just the last one
         lines = context.split('\n')
-        last_user_query = ""
+        user_queries = []
         for line in lines:
             if line.startswith('User: '):
-                last_user_query = line[6:]  # Remove 'User: ' prefix
+                user_queries.append(line[6:])  # Remove 'User: ' prefix
         
-        if not last_user_query:
+        if not user_queries:
             return params
             
-        # Run the last query through parameter extraction to get all its parameters
-        last_query_params = self.basic_parameter_extraction(last_user_query, "")
-        
-        # Copy all non-None parameters from the last query
-        for key, value in last_query_params.items():
-            if value is not None and key != 'intent':
-                params[key] = value
-                print(f"DEBUG: Inherited {key}='{value}' from context query: {last_user_query}")
+        # Process all user queries to accumulate parameters
+        # Start from the oldest query and build up context
+        for query in user_queries:
+            query_params = self.basic_parameter_extraction(query, "")
+            
+            # Add parameters that aren't already set (first occurrence wins for core attributes)
+            for key, value in query_params.items():
+                if value is not None and key != 'intent':
+                    if key not in params or params[key] is None:
+                        params[key] = value
+                        print(f"DEBUG: Inherited {key}='{value}' from context query: {query}")
                 
         return params
 
