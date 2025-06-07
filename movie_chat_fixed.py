@@ -143,7 +143,6 @@ Respond in JSON format only."""
         age_indicators = ['year old', 'years old', 'month old', 'months old', 'baby', 'toddler', 'infant']
         for indicator in age_indicators:
             if indicator in query_lower:
-                import re
                 age_match = re.search(r'(\d+)\s*(year|month)', query_lower)
                 if age_match:
                     age_num = int(age_match.group(1))
