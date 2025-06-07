@@ -324,6 +324,18 @@ Respond with exactly "FOLLOWUP" if it's a follow-up question, or "NEW" if it's a
             
             filtered = filtered[genre_filter]
             print(f"DEBUG: After genre filtering: {len(filtered)} movies")
+            
+            # Age group filtering for kids content
+            if params.get('age_group') == 'Kids':
+                print(f"DEBUG: Applying kids filter")
+                family_genres = ['Animation', 'Family', 'Comedy', 'Adventure', 'Musical']
+                kids_filter = (
+                    filtered['genre'].isin(family_genres) |
+                    filtered['genre'].str.contains('Family|Animation|Comedy', case=False, na=False)
+                )
+                if kids_filter.any():
+                    filtered = filtered[kids_filter]
+                    print(f"DEBUG: After kids filtering: {len(filtered)} movies")
         
         # Description keywords filtering - algorithmic search through actual data
         elif params.get('description_keywords'):
@@ -451,9 +463,12 @@ Answer in 1-2 sentences max. Be direct and helpful."""
             rating = movie['popular'] if pd.notna(movie['popular']) else 'N/A'
             print(f"  {i}. {movie['name']} - Popularity: {rating}")
         
-        # Generate response - always return formatted movie list
+        # Generate personalized response based on search criteria
         if filtered_movies.empty:
             return "I couldn't find any movies matching your criteria. Try a different search!"
+        
+        # Create personalized introduction based on parameters
+        intro = self.generate_personalized_intro(params)
         
         # Generate formatted movie list
         movies_list = []
@@ -462,7 +477,54 @@ Answer in 1-2 sentences max. Be direct and helpful."""
             genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
             movies_list.append(f"• {movie['name']} ({year}) - {genre}")
         
-        return "Here are some movie recommendations:\n" + "\n".join(movies_list)
+        return intro + "\n" + "\n".join(movies_list)
+    
+    def generate_personalized_intro(self, params):
+        """Generate personalized introduction based on search parameters."""
+        intro_parts = []
+        
+        # Check what parameters were used
+        if params.get('genre'):
+            genre = params['genre']
+            intro_parts.append(f"סרטי {genre}")
+        
+        if params.get('age_group'):
+            age_group = params['age_group']
+            age_mapping = {
+                'Kids': 'ילדים',
+                'Teens': 'נוער', 
+                'Adults': 'מבוגרים',
+                'Young Adults': 'צעירים'
+            }
+            age_text = age_mapping.get(age_group, age_group)
+            intro_parts.append(f"שמתאימים ל{age_text}")
+        
+        if params.get('year_range'):
+            year_range = params['year_range']
+            if len(year_range) == 2 and year_range[0] == year_range[1]:
+                intro_parts.append(f"משנת {year_range[0]}")
+            else:
+                intro_parts.append(f"מהשנים {year_range[0]}-{year_range[1]}")
+        
+        if params.get('country'):
+            intro_parts.append(f"מ{params['country']}")
+            
+        if params.get('popular'):
+            popularity_map = {
+                'high': 'פופולריים',
+                'medium': 'בעלי פופולריות בינונית',
+                'low': 'פחות מוכרים'
+            }
+            pop_text = popularity_map.get(params['popular'], 'פופולריים')
+            intro_parts.append(pop_text)
+        
+        # Build the introduction
+        if intro_parts:
+            intro = "הנה רשימה של " + " ".join(intro_parts) + ":"
+        else:
+            intro = "הנה כמה המלצות לסרטים:"
+            
+        return intro
 
 def initialize_system():
     """Initialize the movie recommendation system."""
