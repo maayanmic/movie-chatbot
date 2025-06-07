@@ -724,6 +724,9 @@ Examples:
             # Basic movie list response with interactive questions
             response = self.generate_fallback_response(filtered_movies, params)
             follow_up = self.add_interactive_questions(params, len(filtered_movies))
+            print(f"DEBUG: Generated follow-up question: '{follow_up}'")
+            print(f"DEBUG: Params: {params}")
+            print(f"DEBUG: Num results: {len(filtered_movies)}")
             if follow_up:
                 response += follow_up
             return response
