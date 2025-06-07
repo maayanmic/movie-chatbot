@@ -270,10 +270,11 @@ Return JSON format only."""
         
         query_lower = query.lower().strip()
         
-        # Short queries with time/year indicators are likely follow-ups
+        # Short queries with follow-up indicators are likely follow-ups
         if len(query_lower.split()) <= 4:
             for indicator in followup_indicators:
-                if query_lower.startswith(indicator):
+                # Check if query starts with the indicator OR contains it as a separate word
+                if query_lower.startswith(indicator) or f' {indicator} ' in f' {query_lower} ':
                     return True
         
         # Check for year patterns (2019, 2020, etc.)
