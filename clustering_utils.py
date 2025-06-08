@@ -32,7 +32,7 @@ def setup_movie_clustering(movies_df):
         feature_matrix_scaled = scaler.fit_transform(feature_matrix)
         
         n_clusters = min(15, len(movies_df) // 100)
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         movies_df['cluster'] = kmeans.fit_predict(feature_matrix_scaled)
         
         print(f"Clustering completed with {n_clusters} clusters")
