@@ -456,18 +456,34 @@
             }
         });
 
-        function resetChat() {
-            // Clear all messages except the welcome message
-            const messages = chatMessages.querySelectorAll('.message');
-            messages.forEach((message, index) => {
-                if (index > 0) { // Keep the first welcome message
-                    message.remove();
-                }
-            });
+        async function resetChat() {
+            try {
+                // Send reset request to server
+                await sendMessage('__RESET_CONVERSATION__');
+                
+                // Clear all messages except the welcome message
+                const messages = chatMessages.querySelectorAll('.message');
+                messages.forEach((message, index) => {
+                    if (index > 0) { // Keep the first welcome message
+                        message.remove();
+                    }
+                });
 
-            // Clear input field
-            messageInput.value = '';
-            messageInput.focus();
+                // Clear input field
+                messageInput.value = '';
+                messageInput.focus();
+            } catch (error) {
+                console.error('Error resetting conversation:', error);
+                // Still clear the visual chat even if server reset fails
+                const messages = chatMessages.querySelectorAll('.message');
+                messages.forEach((message, index) => {
+                    if (index > 0) {
+                        message.remove();
+                    }
+                });
+                messageInput.value = '';
+                messageInput.focus();
+            }
         }
 
         // Focus on input when page loads
