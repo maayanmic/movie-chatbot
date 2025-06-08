@@ -6,6 +6,8 @@ import google.generativeai as genai
 import re
 import uuid
 from datetime import datetime
+from movie_utils import fuzzy_match, format_runtime_display, clean_movie_data, is_off_topic_query
+from clustering_utils import setup_movie_clustering, get_cluster_recommendations
 
 # Global variables
 app = Flask(__name__, static_folder='.', template_folder='templates')
