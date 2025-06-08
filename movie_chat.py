@@ -152,7 +152,7 @@ Extract the following information from the user's query and return as JSON:
 - runtime: ONLY if duration is explicitly mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90) - if not mentioned, use null
 - runtime_operator: ONLY if runtime comparison is mentioned: "greater_than", "less_than", "equal_to" or "between" - if not mentioned, use null
 - description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"]) - if no plot description, use null
-- intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic)
+- intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic, pick_from_list)
 
 SPECIAL HANDLING FOR MOVIE REFERENCES:
 If the user asks about "this movie", "that movie", "the movie", or similar references without naming it specifically, check the conversation context for any movie titles mentioned in previous assistant responses. If found, set description_keywords to search for that specific movie title.
