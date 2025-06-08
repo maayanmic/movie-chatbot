@@ -910,7 +910,9 @@ Here are the movies from their previous search:
 
 Give a SHORT, conversational response (2-3 sentences max). Examples:
 
-User asks "which one you recommend?" → Pick ONE movie and briefly explain why
+User asks "which one you recommend?" → "I'd recommend 'Charming'. It's highly rated and family-friendly."
+User asks "give me recommend from your list" → "I suggest 'Dad Wanted' - it's both funny and heartwarming."
+User asks "recommend from the list" → Pick ONE specific movie and explain why
 User asks "are they suitable for kids?" → Simple yes/no with quick reason
 User asks about ratings → Brief comparison or explanation
 
