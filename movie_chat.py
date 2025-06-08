@@ -717,7 +717,12 @@ Examples:
         # Remove duplicates before returning results
         filtered = filtered.drop_duplicates(subset=['name'], keep='first')
         
-        result = filtered.head(6)
+        # Apply K-Means clustering for better recommendations
+        try:
+            from clustering_utils import get_cluster_recommendations
+            result = get_cluster_recommendations(self.movies, filtered, 6)
+        except:
+            result = filtered.head(6)
         print(f"DEBUG: Final results summary:")
         for i, (_, movie) in enumerate(result.iterrows(), 1):
             print(f"  {i}. {movie['name']} - Popularity: {movie['popular']}")
