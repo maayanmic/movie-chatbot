@@ -841,7 +841,7 @@ Always pick ONE specific movie when asked for recommendations. Be friendly but C
 def initialize_system():
     """Initialize the movie recommendation system."""
     try:
-        csv_file_path = 'attached_assets/MergeAndCleaned_Movies.csv'
+        csv_file_path = 'MergeAndCleaned_Movies.csv'
         if not os.path.exists(csv_file_path):
             raise FileNotFoundError(f"CSV file not found: {csv_file_path}")
         
