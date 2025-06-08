@@ -855,6 +855,10 @@ ANALYSIS examples:
 - "which one you recommend?"
 - "what do you recommend?"
 - "recommend one"
+- "is it from the list?"
+- "it is from the list you gave me?"
+- "from the list you showed?"
+- "from your recommendations?"
 
 SEARCH examples:
 - "show me action movies"
