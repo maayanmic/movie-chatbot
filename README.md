@@ -21,15 +21,9 @@ pip install flask pandas google-generativeai
 ## הגדרת מפתח API
 הגדירי משתנה סביבה עם מפתח Gemini:
 
-### Windows:
-```cmd
-set GEMINI_API_KEY=your_api_key_here
-python movie_chat.py
-```
-
 ### Mac/Linux:
 ```bash
-export GEMINI_API_KEY=your_api_key_here
+# export GEMINI_API_KEY=your_api_key_here
 python movie_chat.py
 ```
 
