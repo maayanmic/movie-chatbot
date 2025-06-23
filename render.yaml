@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: movie-chatbot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn movie_chat:app
+    envVars:
+      - key: GEMINI_API_KEY
+        value: YOUR_API_KEY_HERE

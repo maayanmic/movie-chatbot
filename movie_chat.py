@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, render_template_string
+from flask import Flask, render_template, request, jsonify, session
 import pandas as pd
 import json
 import os
@@ -6,167 +6,15 @@ import google.generativeai as genai
 import re
 import uuid
 from datetime import datetime
-from difflib import SequenceMatcher
-import numpy as np
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from movie_utils import fuzzy_match, format_runtime_display, clean_movie_data, is_off_topic_query, is_non_english_query, \
+    is_conversation_ending, should_ask_followup
+from clustering_utils import setup_movie_clustering, get_cluster_recommendations
 
 # Global variables
 app = Flask(__name__, static_folder='.', template_folder='templates')
 app.secret_key = 'movie_recommender_secret_key_2024'
 conversation_memory = {}
 recommender = None
-
-# Utility functions
-def fuzzy_match(word, target_words, threshold=0.7):
-    """Check if word matches any target word with fuzzy matching."""
-    if not word or not target_words:
-        return False
-    
-    word_lower = word.lower().strip()
-    for target in target_words:
-        if not target:
-            continue
-        target_lower = target.lower().strip()
-        similarity = SequenceMatcher(None, word_lower, target_lower).ratio()
-        if similarity >= threshold:
-            return True
-    return False
-
-def extract_runtime_from_text(text):
-    """Extract runtime in minutes from text."""
-    text = text.lower()
-    
-    # Pattern for "X hours Y minutes" or "X hours and Y minutes"
-    hours_minutes_pattern = r'(\d+)\s*(?:hours?|hrs?)\s*(?:and\s*)?(\d+)\s*(?:minutes?|mins?)'
-    match = re.search(hours_minutes_pattern, text)
-    if match:
-        hours = int(match.group(1))
-        minutes = int(match.group(2))
-        return hours * 60 + minutes
-    
-    # Pattern for just hours
-    hours_pattern = r'(\d+)\s*(?:hours?|hrs?)'
-    match = re.search(hours_pattern, text)
-    if match:
-        return int(match.group(1)) * 60
-    
-    # Pattern for just minutes
-    minutes_pattern = r'(\d+)\s*(?:minutes?|mins?)'
-    match = re.search(minutes_pattern, text)
-    if match:
-        return int(match.group(1))
-    
-    # Special cases
-    if 'hour and half' in text or 'hour and a half' in text:
-        return 90
-    if 'two hours' in text:
-        return 120
-    
-    return None
-
-def format_runtime_display(runtime_minutes):
-    """Format runtime for display."""
-    if pd.isna(runtime_minutes) or runtime_minutes <= 0:
-        return ""
-    
-    runtime_minutes = int(runtime_minutes)
-    hours = runtime_minutes // 60
-    minutes = runtime_minutes % 60
-    
-    if hours > 0 and minutes > 0:
-        return f" • {hours}h {minutes}m"
-    elif hours > 0:
-        return f" • {hours}h"
-    else:
-        return f" • {minutes}m"
-
-def clean_movie_data(movies_df):
-    """Clean and prepare movie data."""
-    # Fill missing values
-    movies_df['genre'] = movies_df['genre'].fillna('Unknown')
-    movies_df['country'] = movies_df['country'].fillna('Unknown')
-    movies_df['age_group'] = movies_df['age_group'].fillna('General')
-    movies_df['popular'] = movies_df['popular'].fillna(3.0)
-    movies_df['released'] = movies_df['released'].fillna(2000)
-    movies_df['runtime'] = movies_df['runtime'].fillna(100)
-    
-    return movies_df
-
-def is_off_topic_query(query):
-    """Check if query is off-topic (not about movies)."""
-    off_topic_keywords = [
-        'weather', 'politics', 'cooking', 'sports', 'news', 
-        'health', 'travel', 'music', 'books', 'recipes'
-    ]
-    query_lower = query.lower()
-    return any(keyword in query_lower for keyword in off_topic_keywords)
-
-def setup_movie_clustering(movies_df):
-    """Setup K-Means clustering for movie recommendations."""
-    try:
-        print("Setting up K-Means clustering...")
-        
-        # Encode categorical features
-        le_genre = LabelEncoder()
-        le_country = LabelEncoder()
-        le_age = LabelEncoder()
-        
-        # Create feature matrix
-        movies_df['genre_encoded'] = le_genre.fit_transform(movies_df['genre'].fillna('Unknown'))
-        movies_df['country_encoded'] = le_country.fit_transform(movies_df['country'].fillna('Unknown'))
-        movies_df['age_group_encoded'] = le_age.fit_transform(movies_df['age_group'].fillna('General'))
-        
-        feature_matrix = np.column_stack([
-            movies_df['genre_encoded'].values,
-            movies_df['country_encoded'].values,
-            movies_df['age_group_encoded'].values,
-            movies_df['released'].fillna(2000).values,
-            movies_df['popular'].fillna(3.0).values,
-            movies_df['runtime'].fillna(100).values
-        ])
-        
-        # Scale and cluster
-        scaler = StandardScaler()
-        feature_matrix_scaled = scaler.fit_transform(feature_matrix)
-        
-        n_clusters = min(15, len(movies_df) // 100)
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        movies_df['cluster'] = kmeans.fit_predict(feature_matrix_scaled)
-        
-        print(f"Clustering completed with {n_clusters} clusters")
-        return True
-        
-    except Exception as e:
-        print(f"Clustering setup failed: {e}")
-        movies_df['cluster'] = 0
-        return False
-
-def get_cluster_recommendations(movies_df, filtered_movies, limit=6):
-    """Enhance recommendations using cluster information."""
-    try:
-        if 'cluster' not in movies_df.columns:
-            return filtered_movies.head(limit)
-        
-        # Get cluster distribution from filtered movies
-        cluster_counts = filtered_movies['cluster'].value_counts()
-        
-        # Get diverse recommendations from top clusters
-        recommendations = []
-        for cluster_id in cluster_counts.index[:3]:  # Top 3 clusters
-            cluster_movies = filtered_movies[filtered_movies['cluster'] == cluster_id]
-            recommendations.append(cluster_movies.head(2))
-        
-        # Combine and return
-        if recommendations:
-            result = pd.concat(recommendations).drop_duplicates(subset=['name']).head(limit)
-            return result if not result.empty else filtered_movies.head(limit)
-        else:
-            return filtered_movies.head(limit)
-            
-    except Exception as e:
-        print(f"Cluster recommendation failed: {e}")
-        return filtered_movies.head(limit)
 
 
 class MovieRecommender:
@@ -185,21 +33,19 @@ class MovieRecommender:
 
             # Load movie data
             self.movies = self.load_movies(csv_file_path)
-            
-            # Setup clustering
-            setup_movie_clustering(self.movies)
-            
+            print(f"Successfully loaded {len(self.movies)} movies")
+
         except Exception as e:
             print(f"Error initializing MovieRecommender: {str(e)}")
-            raise Exception(f"Error initializing MovieRecommender: {str(e)}")
+            self.model = None
+            self.movies = pd.DataFrame()
 
     def load_movies(self, csv_file_path):
         """Load and validate movie data from CSV."""
         try:
             # Try different encodings
-            encodings = ['latin-1', 'utf-8', 'cp1252', 'iso-8859-1']
-            movies = None
-            
+            encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+
             for encoding in encodings:
                 try:
                     movies = pd.read_csv(csv_file_path, encoding=encoding)
@@ -207,8 +53,7 @@ class MovieRecommender:
                     break
                 except UnicodeDecodeError:
                     continue
-            
-            if movies is None:
+            else:
                 raise ValueError("Could not read CSV file with any encoding")
 
             # Validate required columns
@@ -254,15 +99,51 @@ class MovieRecommender:
 
     def extract_query_parameters(self, user_query, conversation_context=""):
         """Use Gemini to extract parameters from natural language query."""
-        try:
-            if self.model:
-                prompt = f"""Extract movie search parameters from this query. Return ONLY valid JSON.
+        print(f"DEBUG: Processing query: {user_query}")
+        print(f"DEBUG: Conversation context: {conversation_context[:200]}...")
 
-Context from conversation: {conversation_context}
-User query: "{user_query}"
+        system_prompt = """You are a movie recommendation assistant that extracts search parameters from natural language queries.
 
-Extract these parameters:
-- age_group: ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
+IMPORTANT: Handle Hebrew text, English text, mixed Hebrew-English, and typos. Be extremely flexible with genre recognition and spelling variations.
+
+CONTEXT HANDLING: When analyzing the current query, consider the previous conversation context to understand:
+- Follow-up questions (e.g., "only from 2019" after asking for kids movies)
+- Refinements (e.g., "something newer" or "more recent")
+- Continuations (e.g., "and also" or "what about")
+- References to previous recommendations
+
+CRITICAL INHERITANCE RULE: When conversation context is provided, you MUST ALWAYS extract parameters from BOTH the context AND the current query. Never ignore context parameters.
+
+MANDATORY EXAMPLES:
+Context: "User: give me drama movies" → Current: "for adults only"
+MUST RETURN: genre: "Drama", age_group: "Adults"
+
+Context: "User: drama movies" → Current: "what released in 2019?"  
+MUST RETURN: genre: "Drama", year_range: [2019, 2019]
+
+Context: "User: romantic movies" → Current: "from 2020"
+MUST RETURN: genre: "Romance", year_range: [2020, 2020]
+
+RULE: If the context mentions ANY parameter (genre, age_group, actor, etc.), include it in your response even if the current query doesn't mention it.
+
+EXAMPLES:
+Previous: "romantic movies" → Current: "from 2020" → Return: genre: "romantic", year_range: [2020, 2020]
+Previous: "action movies" → Current: "with Tom Cruise" → Return: genre: "action", actor: "Tom Cruise"
+
+GENRE VARIATIONS TO RECOGNIZE (including common typos):
+- Romance/Romantic: "romance", "romantic", "rommantic", "rommntic", "rommance", "romence", "romanc", "רומנטי", "רומנטית", "אהבה"
+- Action: "action", "actoin", "akshen", "אקשן", "פעולה"
+- Comedy: "comedy", "comdy", "komedia", "funny", "קומדיה"
+- Drama: "drama", "drame", "דרמה"
+- Horror: "horror", "scary", "horer", "horor", "אימה"
+- Thriller: "thriller", "thriler", "suspense", "מתח"
+- Sci-Fi: "sci-fi", "science fiction", "scifi", "sci fi", "מדע בדיוני"
+- Fantasy: "fantasy", "fantesy", "פנטזיה"
+- Documentary: "documentary", "documentry", "docu", "תיעודי"
+- Animation: "animation", "animated", "animtion", "cartoon", "אנימציה"
+
+Extract the following information from the user's query and return as JSON:
+- age_group: target age group ONLY if explicitly mentioned (Kids, Teens, Young Adults, Adults) - if not mentioned, use null
 - genre: specific genre ONLY if explicitly mentioned - be extremely flexible with spelling variations - if not mentioned, use null
 - year_range: [min_year, max_year] ONLY if years are explicitly mentioned - if not mentioned, use null
 - country: specific country ONLY if explicitly mentioned - if not mentioned, use null
@@ -272,22 +153,43 @@ Extract these parameters:
 - runtime: ONLY if duration is explicitly mentioned, convert to minutes (e.g., "two hours" = 120, "90 minutes" = 90, "hour and half" = 90) - if not mentioned, use null
 - runtime_operator: ONLY if runtime comparison is mentioned: "greater_than", "less_than", "equal_to" or "between" - if not mentioned, use null
 - description_keywords: array of keywords describing plot/story elements (e.g., for "movie about a missing doctor" extract ["missing", "doctor"]) - if no plot description, use null
-- intent: the main intent (recommend, check_suitability, filter, general)
+- intent: the main intent (recommend, check_suitability, filter, general_movie_question, off_topic, pick_from_list)
 
-Return only the JSON object."""
+SPECIAL HANDLING FOR MOVIE REFERENCES:
+If the user asks about "this movie", "that movie", "the movie", or similar references without naming it specifically, check the conversation context for any movie titles mentioned in previous assistant responses. If found, set description_keywords to search for that specific movie title.
 
+Examples:
+- Context shows assistant mentioned "My Octopus Teacher" → User asks "about what this movie?" → description_keywords: ["My Octopus Teacher"]
+- Context shows assistant mentioned "Charming" → User asks "tell me about that movie" → description_keywords: ["Charming"]
+
+Return JSON format only."""
+
+        try:
+            if self.model:
+                context_info = ""
+                if conversation_context:
+                    context_info = f"\n\nPrevious conversation context:\n{conversation_context}\n"
+
+                prompt = f"{system_prompt}{context_info}\nUser query: {user_query}"
                 response = self.model.generate_content(prompt)
-                result = json.loads(response.text.strip())
-                
-                # Age detection for teens - handle numeric ages
-                if 'teen' in user_query.lower() or any(age in user_query for age in ['13', '14', '15', '16', '17', '18']):
-                    result['age_group'] = 'Teens'
-                
-                return result
+
+                # Extract JSON from response
+                response_text = response.text.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:-3].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:-3].strip()
+
+                params = json.loads(response_text)
+                print(f"DEBUG: Gemini extracted parameters: {params}")
+                if conversation_context:
+                    print(f"DEBUG: Context was provided - checking if parameters inherited correctly")
+                return params
             else:
                 return self.basic_parameter_extraction(user_query, conversation_context)
+
         except Exception as e:
-            print(f"Error with Gemini extraction: {e}")
+            print(f"DEBUG: Gemini failed, using fallback: {str(e)}")
             return self.basic_parameter_extraction(user_query, conversation_context)
 
     def basic_parameter_extraction(self, query, conversation_context=""):
@@ -300,43 +202,249 @@ Return only the JSON object."""
             'popular': None,
             'actor': None,
             'director': None,
-            'runtime': None,
-            'runtime_operator': None,
             'description_keywords': None,
             'intent': 'recommend'
         }
 
+        # Check if this is a follow-up query based on conversation context
+        if conversation_context:
+            if self.is_followup_query(query, conversation_context):
+                context_params = self.extract_context_parameters(conversation_context)
+                params.update(context_params)
+
+        # Extract additional parameters from the current query itself
+        # (beyond what was extracted from context)
         query_lower = query.lower()
 
-        # Age group detection
-        if any(word in query_lower for word in ['kid', 'child', 'children']):
-            params['age_group'] = 'Kids'
-        elif any(word in query_lower for word in ['teen', 'teenager', 'adolescent']):
-            params['age_group'] = 'Teens'
-        elif any(word in query_lower for word in ['young adult', 'youth']):
-            params['age_group'] = 'Young Adults'
+        # Simple age detection for kids content
+        age_indicators = ['year old', 'years old', 'month old', 'months old', 'baby', 'toddler', 'infant']
+        for indicator in age_indicators:
+            if indicator in query_lower:
+                # Extract age if mentioned
+                import re
+                age_match = re.search(r'(\d+)\s*(year|month)', query_lower)
+                if age_match:
+                    age_num = int(age_match.group(1))
+                    age_unit = age_match.group(2)
 
-        # Genre detection
-        genres = ['action', 'comedy', 'drama', 'horror', 'romance', 'thriller', 'sci-fi', 'fantasy', 'documentary']
-        for genre in genres:
-            if genre in query_lower:
-                params['genre'] = genre.title()
+                    # Convert to approximate age groups
+                    if (age_unit == 'month' and age_num <= 24) or (age_unit == 'year' and age_num <= 2):
+                        params['age_group'] = 'Kids'
+                        print(f"DEBUG: Detected very young age ({age_num} {age_unit}), setting to Kids")
+                    elif age_unit == 'year' and age_num <= 12:
+                        params['age_group'] = 'Kids'
+                        print(f"DEBUG: Detected child age ({age_num} {age_unit}), setting to Kids")
+                    elif age_unit == 'year' and 13 <= age_num <= 17:
+                        params['age_group'] = 'Teens'
+                        print(f"DEBUG: Detected teen age ({age_num} {age_unit}), setting to Teens")
+                    elif age_unit == 'year' and 18 <= age_num <= 25:
+                        params['age_group'] = 'Young Adults'
+                        print(f"DEBUG: Detected young adult age ({age_num} {age_unit}), setting to Young Adults")
+                    elif age_unit == 'year' and age_num >= 26:
+                        params['age_group'] = 'Adults'
+                        print(f"DEBUG: Detected adult age ({age_num} {age_unit}), setting to Adults")
                 break
 
-        # Year detection
-        years = re.findall(r'\b(19|20)\d{2}\b', query)
-        if len(years) == 1:
-            year = int(years[0])
-            params['year_range'] = [year, year]
-        elif len(years) == 2:
-            params['year_range'] = [int(min(years)), int(max(years))]
+        # Kids/Family detection
+        kids_indicators = [
+            'for kids', 'for children', 'suitable for kids', 'suit to kids',
+            'that will suit', 'appropriate for kids', 'family friendly',
+            'children can watch', 'kids can watch', 'child friendly'
+        ]
 
-        # Country detection (basic)
-        countries = ['usa', 'america', 'uk', 'france', 'germany', 'japan', 'korea', 'india', 'china']
+        for indicator in kids_indicators:
+            if indicator in query_lower:
+                params['age_group'] = 'Kids'
+                print(f"DEBUG: Detected kids request from current query: {indicator}")
+                break
+
+        # Additional age groups detection - check longer phrases first
+        if not params.get('age_group'):
+            if 'young adults' in query_lower:
+                params['age_group'] = 'Young Adults'
+                print(f"DEBUG: Detected age group 'Young Adults' from query")
+            elif ('young' in query_lower and 'adult' in query_lower) and 'young adults' not in query_lower:
+                params['age_group'] = 'Young Adults'
+                print(f"DEBUG: Detected age group 'Young Adults' from query")
+            elif 'teens' in query_lower or 'teenager' in query_lower:
+                params['age_group'] = 'Teens'
+                print(f"DEBUG: Detected age group 'Teens' from query")
+            elif 'adults' in query_lower and 'young adults' not in query_lower:
+                params['age_group'] = 'Adults'
+                print(f"DEBUG: Detected age group 'Adults' from query")
+            elif 'adult' in query_lower and 'young' not in query_lower:
+                params['age_group'] = 'Adults'
+                print(f"DEBUG: Detected age group 'Adults' from query")
+
+        # Genre detection using fuzzy matching
+        genre_keywords = {
+            'romance': ['romance', 'romantic'],
+            'action': ['action'],
+            'comedy': ['comedy', 'comedies', 'funny'],
+            'drama': ['drama'],
+            'horror': ['horror', 'scary'],
+            'thriller': ['thriller', 'suspense'],
+            'sci-fi': ['sci-fi', 'science fiction', 'scifi'],
+            'fantasy': ['fantasy'],
+            'documentary': ['documentary', 'docu'],
+            'animation': ['animation', 'animated', 'cartoon']
+        }
+
+        # Split query into words for fuzzy matching
+        query_words = query.lower().split()
+
+        for genre, keywords in genre_keywords.items():
+            for word in query_words:
+                # Use higher threshold for more accurate matching
+                if len(word) >= 3 and self.fuzzy_match(word, keywords, threshold=0.8):
+                    params['genre'] = genre.title()
+                    break
+            if params['genre']:
+                break
+
+        # Extract keywords for description search - improved to catch more patterns
+        description_keywords = []
+        query_lower = query.lower()
+
+        # Look for story patterns
+        story_indicators = ['about', 'movie about', 'film about', 'story of', 'follows', 'centers on']
+
+        for indicator in story_indicators:
+            if indicator in query_lower:
+                start_pos = query_lower.find(indicator) + len(indicator)
+                remaining_text = query[start_pos:].strip()
+                words = remaining_text.split()
+                meaningful_words = [word for word in words if len(word) > 2 and  # Changed from 3 to 2
+                                    word.lower() not in ['that', 'with', 'from', 'where', 'when', 'what', 'which',
+                                                         'and', 'the', 'his', 'her']]
+                description_keywords.extend(meaningful_words[:7])  # Increased from 5 to 7
+                break
+
+        # Also look for specific key terms in the query
+        key_terms = ['doctor', 'psychiatrist', 'missing', 'wife', 'treat', 'medical', 'condition', 'patient']
+        for term in key_terms:
+            if term in query_lower and term not in description_keywords:
+                description_keywords.append(term)
+
+        if description_keywords:
+            params['description_keywords'] = description_keywords[:7]  # Limit to 7 terms
+
+        # Extract year or year range from current query if present
+        import re
+
+        # First try to find year ranges like "from 2019 to 2021", "2019-2021", "between 2019 and 2021"
+        range_patterns = [
+            r'from\s+(\d{4})\s+to\s+(\d{4})',
+            r'between\s+(\d{4})\s+and\s+(\d{4})',
+            r'(\d{4})\s*-\s*(\d{4})',
+            r'(\d{4})\s+to\s+(\d{4})'
+        ]
+
+        year_range_found = False
+        for pattern in range_patterns:
+            range_match = re.search(pattern, query_lower)
+            if range_match:
+                start_year = int(range_match.group(1))
+                end_year = int(range_match.group(2))
+                # Ensure valid year range
+                if 1900 <= start_year <= 2030 and 1900 <= end_year <= 2030:
+                    params['year_range'] = [min(start_year, end_year), max(start_year, end_year)]
+                    year_range_found = True
+                    break
+
+        # If no range found, look for single year
+        if not year_range_found:
+            year_match = re.search(r'\b(19|20)(\d{2})\b', query)
+            if year_match:
+                year = int(year_match.group(0))
+                params['year_range'] = [year, year]
+
+        # Handle temporal keywords (recent, latest, new, etc.)
+        if any(word in query_lower for word in ['recent', 'latest', 'new', 'newer']):
+            # Set to recent years (2019-2021)
+            params['year_range'] = [2019, 2021]
+
+        # Quick actor detection with fuzzy matching
+        # Handle "X is acting" or "X is in the cast" patterns
+        if 'is acting' in query_lower or 'is in the cast' in query_lower or 'is in' in query_lower:
+            words = query.split()
+            for i, word in enumerate(words):
+                if word.lower() == 'is' and i > 0:
+                    if i == 1:  # Single name before "is"
+                        params['actor'] = words[i - 1]
+                    elif i >= 2:  # Two names before "is"
+                        params['actor'] = f"{words[i - 2]} {words[i - 1]}"
+                    break
+        else:
+            # Handle regular keywords
+            actor_keywords = ['starring', 'with', 'featuring']
+            for keyword in actor_keywords:
+                if keyword in query_lower or any(
+                        self.fuzzy_match(word, [keyword], threshold=0.8) for word in query_lower.split()):
+                    words = query.split()
+                    # Find the keyword position (exact or fuzzy)
+                    idx = -1
+                    for i, word in enumerate(words):
+                        if word.lower() == keyword or self.fuzzy_match(word.lower(), [keyword], threshold=0.8):
+                            idx = i
+                            break
+
+                    if idx >= 0 and idx < len(words) - 2:
+                        params['actor'] = f"{words[idx + 1]} {words[idx + 2]}"
+                    elif idx >= 0 and idx < len(words) - 1:
+                        params['actor'] = words[idx + 1]
+                    break
+
+        # Quick director detection with fuzzy matching
+        director_keywords = ['director', 'directed']
+        for keyword in director_keywords:
+            # Check for "director is" pattern first
+            if f'{keyword} is' in query_lower:
+                parts = query_lower.split(f'{keyword} is')
+                if len(parts) > 1:
+                    director_part = parts[1].strip().split()[0:2]
+                    if len(director_part) >= 2:
+                        params['director'] = f"{director_part[0].title()} {director_part[1].title()}"
+                    elif len(director_part) == 1:
+                        params['director'] = director_part[0].title()
+                break
+            # Check for fuzzy match of keyword
+            elif keyword in query_lower or any(
+                    self.fuzzy_match(word, [keyword], threshold=0.8) for word in query_lower.split()):
+                words = query.split()
+                idx = -1
+                for i, word in enumerate(words):
+                    if word.lower() == keyword or self.fuzzy_match(word.lower(), [keyword], threshold=0.8):
+                        idx = i
+                        break
+
+                if idx >= 0 and idx < len(words) - 2:
+                    params['director'] = f"{words[idx + 1]} {words[idx + 2]}"
+                elif idx >= 0 and idx < len(words) - 1:
+                    params['director'] = words[idx + 1]
+                break
+
+        # Quick country detection with fuzzy matching
+        countries = ['american', 'british', 'french', 'german', 'japanese', 'singapore', 'korean', 'chinese', 'indian',
+                     'italian', 'spanish']
+
+        # Check for exact matches first
         for country in countries:
-            if country in query_lower:
-                params['country'] = country.title()
+            if country in query_lower or f'from {country}' in query_lower or f'origin from {country}' in query_lower:
+                params['country'] = country.capitalize()
                 break
+
+        # If no exact match, try fuzzy matching
+        if not params.get('country'):
+            words = query_lower.split()
+            for word in words:
+                if len(word) > 4:  # Only check longer words
+                    for country in countries:
+                        if self.fuzzy_match(word, [country], threshold=0.8):
+                            params['country'] = country.capitalize()
+                            break
+                    if params.get('country'):
+                        break
 
         # Quick popularity detection
         if any(w in query_lower for w in ['popular', 'top', 'best']):
@@ -353,63 +461,123 @@ Return only the JSON object."""
             # Simple fallback if no AI available
             # Enhanced fallback for follow-up detection when AI is unavailable
             query_lower = query.lower()
-            
+
             # Age appropriateness questions
             age_questions = ['is it for', 'suitable for', 'appropriate for', 'good for', 'ok for']
             if any(phrase in query_lower for phrase in age_questions):
                 return True
-            
-            # Filtering/refinement phrases  
+
+            # Filtering/refinement phrases
             filter_phrases = ['only', 'just', 'but', 'except', 'without', 'more', 'other', 'different']
             if any(word in query_lower for word in filter_phrases):
                 return True
-                
+
             # Recommendation requests about existing results
             recommendation_phrases = ['which one', 'what do you recommend', 'recommend one', 'pick one', 'which do you']
             if any(phrase in query_lower for phrase in recommendation_phrases):
                 return True
-            
+
             # Short queries are likely follow-ups
-            if len(query.split()) <= 3:
-                return True
-            
-            return False
+            return len(query.split()) <= 3
 
         try:
-            prompt = f"""Is this a follow-up question to the previous conversation or a completely new topic?
+            prompt = f"""
+Analyze if the user's current query is a follow-up to the previous conversation or a completely new movie request.
 
-Previous context: {context[:200]}...
+Previous conversation:
+{context}
+
 Current query: "{query}"
 
-Answer with just "FOLLOWUP" or "NEW_TOPIC".
+Return only "FOLLOWUP" or "NEW_TOPIC"
 
-FOLLOWUP examples:
-- "only from 2020" (after showing movies)
-- "are they suitable for kids?" (asking about previous results)
-- "what about horror movies?" (refinement)
-- "which one you recommend?" (asking about previous list)
+Guidelines:
+- FOLLOWUP: refining/filtering previous results, asking for more options, temporal references, single words/short phrases
+- NEW_TOPIC: complete new movie requests, different genres/topics, asking for recommendations from scratch
 
-NEW_TOPIC examples:
-- "show me action movies" (completely new request)
-- "I want romantic films" (new genre request)"""
+Examples:
+- "only romantic" → FOLLOWUP
+- "from 2019" → FOLLOWUP  
+- "there is more?" → FOLLOWUP
+- "but I want something older that came out in the 1990s" → FOLLOWUP
+- "What action movies do you recommend?" → NEW_TOPIC
+- "I want comedy movies" → NEW_TOPIC
+"""
 
             response = self.model.generate_content(prompt)
-            return "FOLLOWUP" in response.text.upper()
-        except:
-            return False
+            result = response.text.strip().upper()
+
+            if "FOLLOWUP" in result:
+                print(f"DEBUG: Gemini detected FOLLOWUP")
+                return True
+            elif "NEW_TOPIC" in result:
+                print(f"DEBUG: Gemini detected NEW_TOPIC")
+                return False
+            else:
+                print(f"DEBUG: Gemini unclear response: {result}, assuming followup")
+                return True
+
+        except Exception as e:
+            print(f"DEBUG: Gemini failed: {str(e)}, using enhanced fallback")
+            # Enhanced fallback when Gemini is unavailable
+            query_lower = query.lower().strip()
+
+            # Clear new topic indicators - complete requests for movies
+            new_topic_phrases = [
+                'what movies', 'which movies', 'can you give me', 'give me', 'can you recommend',
+                'recommend', 'suggest', 'i want movies', 'i need movies', 'i want', 'i need',
+                'find me', 'show me', 'looking for', 'help me find'
+            ]
+
+            # Check for genre + movies combinations that indicate new requests
+            genre_requests = [
+                'drama movies', 'action movies', 'comedy movies', 'horror movies',
+                'romantic movies', 'sci-fi movies', 'fantasy movies', 'thriller movies'
+            ]
+
+            if any(phrase in query_lower for phrase in new_topic_phrases + genre_requests):
+                return False
+
+            # Strong follow-up indicators (regardless of length)
+            follow_indicators = ['only', 'just', 'from', 'but', 'and', 'also', 'more', 'other', 'newer', 'older']
+            if any(query_lower.startswith(word + ' ') for word in follow_indicators):
+                return True
+
+            # Year patterns indicate refinement
+            import re
+            if re.search(r'\b(19|20)\d{2}\b', query):
+                return True
+
+            # Default: short queries are follow-ups
+            return len(query.split()) <= 4
 
     def extract_context_parameters(self, context):
         """Extract relevant parameters from conversation context."""
-        try:
-            # Extract the most recent query from context
-            lines = context.strip().split('\n')
-            for line in reversed(lines):
-                if line.startswith('User:'):
-                    recent_query = line.replace('User:', '').strip()
-                    return self.extract_query_parameters(recent_query)
-            return {}
-        except:
-            return {}
+        params = {}
+
+        # Find ALL user queries from context, not just the last one
+        lines = context.split('\n')
+        user_queries = []
+        for line in lines:
+            if line.startswith('User: '):
+                user_queries.append(line[6:])  # Remove 'User: ' prefix
+
+        if not user_queries:
+            return params
+
+        # Process all user queries to accumulate parameters
+        # Start from the oldest query and build up context
+        for query in user_queries:
+            query_params = self.basic_parameter_extraction(query, "")
+
+            # Add parameters that aren't already set (first occurrence wins for core attributes)
+            for key, value in query_params.items():
+                if value is not None and key != 'intent':
+                    if key not in params or params[key] is None:
+                        params[key] = value
+                        print(f"DEBUG: Inherited {key}='{value}' from context query: {query}")
+
+        return params
 
     def filter_movies(self, params):
         """Filter movies based on extracted parameters."""
@@ -514,8 +682,9 @@ NEW_TOPIC examples:
                     print(f"DEBUG: Found {len(matches)} movies with '{clean_keyword}'")
                     if clean_keyword == 'missing' and len(matches) > 0:
                         print(f"DEBUG: Movies with 'missing': {matches['name'].head(5).tolist()}")
-                        # Check if exact search works
-                        exact_match = self.movies[self.movies['description'].str.contains("When a doctor goes missing, his psychiatrist wife treats", case=False, na=False)]
+                        # Check specifically for the movie with the exact description
+                        exact_match = filtered[filtered['description'].str.contains(
+                            "When a doctor goes missing, his psychiatrist wife treats", case=False, na=False)]
                         if not exact_match.empty:
                             movie_name = exact_match.iloc[0]['name']
                             print(f"DEBUG: Found exact match movie: '{movie_name}'")
@@ -553,9 +722,10 @@ NEW_TOPIC examples:
 
         # Remove duplicates before returning results
         filtered = filtered.drop_duplicates(subset=['name'], keep='first')
-        
+
         # Apply K-Means clustering for better recommendations
         try:
+            from clustering_utils import get_cluster_recommendations
             result = get_cluster_recommendations(self.movies, filtered, 6)
         except:
             result = filtered.head(6)
@@ -567,71 +737,134 @@ NEW_TOPIC examples:
     def get_recommendation(self, user_query, conversation_context=""):
         """Main method to get movie recommendations based on user query."""
         try:
+            # Check for non-English queries first
+            if is_non_english_query(user_query):
+                return "I'm sorry, but I only understand English. Please ask your movie questions in English, and I'll be happy to help you find great movies!"
+
+            # Check if user is ending the conversation after receiving recommendations
+            if is_conversation_ending(user_query, conversation_context):
+                return "You're welcome! I'm glad I could help you find some great movies. Feel free to come back anytime if you need more movie recommendations. Enjoy your movie watching!"
+
             # Check for off-topic queries first
             off_topic_keywords = ['weather', 'politics', 'cooking', 'sports', 'news', 'health', 'travel']
             if any(keyword in user_query.lower() for keyword in off_topic_keywords):
-                return "I'm sorry, but I specialize only in the world of movies. Ask me anything about movies and I'll be happy to help!"
+                return "I'm sorry, but I specialize only in the world of movies. Please ask me about movie recommendations, actors, directors, or anything related to films!"
 
-            print(f"DEBUG: Processing query: {user_query}")
-            print(f"DEBUG: Conversation context: {conversation_context[:100]}...")
+            # Check if this is a follow-up query or new topic
+            is_followup = self.is_followup_query(user_query, conversation_context) if conversation_context else False
 
-            # Determine if this is a follow-up query
-            is_followup = self.is_followup_query(user_query, conversation_context)
-            
-            if is_followup:
-                print("DEBUG: Gemini detected FOLLOWUP")
-                # For follow-up queries, combine context with current query
+            # Check if this is a recommendation question about existing results - FIRST PRIORITY
+            recommendation_patterns = ['which one', 'what do you recommend', 'recommend one', 'pick one',
+                                       'which do you', 'what you recommend', 'all of them suit', 'suit for me',
+                                       'suitable for me', 'good for me', 'are they good', 'are these good']
+            is_recommendation_question = any(pattern in user_query.lower() for pattern in recommendation_patterns)
+
+            # Handle recommendation questions directly (works even when API is down)
+            if is_recommendation_question and conversation_context:
                 context_params = self.extract_context_parameters(conversation_context)
-                current_params = self.extract_query_parameters(user_query, conversation_context)
-                
-                # Merge parameters, giving priority to current query
-                merged_params = context_params.copy()
-                for key, value in current_params.items():
-                    if value is not None:
-                        merged_params[key] = value
-                
-                # Debug output for inherited parameters
-                for key, value in context_params.items():
-                    if value is not None and key in merged_params and merged_params[key] == value and current_params.get(key) is None:
-                        if key == 'age_group' and 'teen' in conversation_context.lower():
-                            print(f"DEBUG: Detected teen age (15 year), setting to Teens")
-                            merged_params['age_group'] = 'Teens'
-                        print(f"DEBUG: Inherited {key}='{value}' from context query: {user_query}")
-                
-                params = merged_params
-                print(f"DEBUG: Context was provided - checking if parameters inherited correctly")
-            else:
-                print("DEBUG: Gemini detected NEW_TOPIC")
-                # For new queries, extract fresh parameters
-                params = self.extract_query_parameters(user_query, conversation_context)
+                filtered_movies = self.filter_movies(context_params)
+                if not filtered_movies.empty:
+                    return self.generate_analytical_response(filtered_movies, user_query)
+
+            # Backup check for follow-up recommendation questions
+            if is_followup and is_recommendation_question and conversation_context:
+                # This is asking for recommendation from existing results - use analytical response
+                context_params = self.extract_context_parameters(conversation_context)
+                filtered_movies = self.filter_movies(context_params)
+                if not filtered_movies.empty:
+                    return self.generate_analytical_response(filtered_movies, user_query)
+
+            # Extract parameters from query
+            # Only pass context if it's a follow-up query
+            context_to_use = conversation_context if is_followup else ""
+            params = self.extract_query_parameters(user_query, context_to_use)
+
+            # Handle off-topic intent
+            if params.get('intent') == 'off_topic':
+                return "I'm sorry, but I specialize only in the world of movies. Please ask me about movie recommendations, actors, directors, or anything related to films!"
+
+            # Handle alternative suggestions for negative feedback
+            if params.get('intent') == 'suggest_alternatives':
+                return self.suggest_alternatives(conversation_context, user_query)
 
             # Filter movies based on parameters
             filtered_movies = self.filter_movies(params)
 
-            # Handle empty results with suggestions
-            if filtered_movies.empty:
-                return self.suggest_alternatives(conversation_context, user_query)
+            # Generate response
+            if not filtered_movies.empty:
+                response = self.generate_response(filtered_movies, params, user_query)
 
-            # Generate natural language response
-            return self.generate_response(filtered_movies, params, user_query)
+                # Add follow-up question using AI to determine if appropriate
+                followup_question = self.generate_followup_question(response, conversation_context, user_query)
+                if followup_question:
+                    response += f"\n\n{followup_question}"
+
+                return response
+            else:
+                return "I couldn't find any movies matching your specific criteria. Try broadening your search or asking for different genres, years, or actors."
 
         except Exception as e:
-            print(f"Error in get_recommendation: {str(e)}")
-            return f"I apologize, but I encountered an error while processing your request. Please try rephrasing your question."
+            return f"I encountered an error while processing your request: {str(e)}. Please try again with a different query."
+
+    def generate_followup_question(self, response, conversation_context, user_query):
+        """Generate an appropriate follow-up question using AI."""
+        try:
+            if self.model:
+                prompt = f"""You are a movie recommendation chatbot. You just provided this response to the user:
+
+"{response[:200]}..."
+
+Previous conversation context:
+{conversation_context[:300] if conversation_context else "No previous context"}
+
+User's last query: "{user_query}"
+
+Should you ask a follow-up question to ensure the user is satisfied? If yes, provide ONLY the follow-up question (one short sentence). If no, return "NONE".
+
+Guidelines:
+- Ask follow-up questions after providing movie recommendations
+- Use phrases like: "Did this help you?", "Would you like something else?", "Are these the type of movies you were looking for?"
+- Don't ask follow-up questions if the user is already asking for clarification or more specific info
+- Don't ask if the user seems to be ending the conversation
+- Keep it natural and conversational
+
+Examples:
+- After movie recommendations: "Did these recommendations help you?"
+- After providing specific movie info: "Would you like more movies like this?"
+- If user asked analytical question: "NONE"
+- If user said thanks/ok: "NONE"
+"""
+
+                response_ai = self.model.generate_content(prompt)
+                result = response_ai.text.strip()
+
+                if result and result != "NONE" and len(result) < 100:
+                    return result
+                else:
+                    return None
+
+        except Exception as e:
+            print(f"DEBUG: Followup question generation failed: {str(e)}")
+
+        # Simple fallback for when AI is unavailable
+        if any(keyword in response.lower() for keyword in ['movie recommendations', 'here are', 'suggestions']):
+            if not any(end_phrase in user_query.lower() for end_phrase in ['thank', 'ok', 'bye', 'enough']):
+                return "Did these recommendations help you?"
+
+        return None
 
     def suggest_alternatives(self, conversation_context, user_query):
         """Suggest alternative genres when user doesn't like previous recommendations."""
-        # Try to extract the genre they didn't like from context
-        previous_genre = None
-        if 'genre' in conversation_context.lower():
-            # Simple extraction - could be improved
-            for genre in ['action', 'comedy', 'drama', 'horror', 'romance', 'thriller']:
-                if genre in conversation_context.lower():
-                    previous_genre = genre.title()
-                    break
 
-        # Suggest alternative genres based on what they didn't like
+        # Extract the previous genre from context
+        previous_genre = None
+        if conversation_context:
+            context_params = self.extract_context_parameters(conversation_context)
+            previous_genre = context_params.get('genre')
+
+        # Define alternative genre mappings
         genre_alternatives = {
+            'Romance': ['Comedy', 'Drama', 'Family'],
             'Action': ['Thriller', 'Adventure', 'Sci-Fi'],
             'Comedy': ['Romance', 'Family', 'Animation'],
             'Drama': ['Thriller', 'Biography', 'History'],
@@ -708,9 +941,9 @@ SEARCH examples:
                 query_lower = query.lower()
                 # Check for question words that typically indicate analysis
                 question_patterns = ['which', 'what', 'how', 'are they', 'is it', 'tell me', 'pick', 'choose',
-                                     'recommend', 'suggest', 'from the list', 'from your']
+                                     'recommend', 'suggest']
                 # Check for analysis context words
-                analysis_context = ['one', 'best', 'better', 'rating', 'suitable', 'good', 'about', 'list', 'gave me']
+                analysis_context = ['one', 'best', 'better', 'rating', 'suitable', 'good', 'about']
 
                 has_question = any(pattern in query_lower for pattern in question_patterns)
                 has_context = any(context in query_lower for context in analysis_context)
@@ -723,23 +956,29 @@ SEARCH examples:
 
     def generate_analytical_response(self, filtered_movies, query):
         """Generate analytical response using Gemini."""
-        try:
-            if self.model and not filtered_movies.empty:
-                # Prepare movie data for analysis
-                movies_data = ""
-                for i, (_, movie) in enumerate(filtered_movies.head(6).iterrows(), 1):
-                    runtime_display = format_runtime_display(movie.get('runtime', 0))
-                    movies_data += f"{i}. {movie['name']} ({movie.get('released', 'N/A')}) - "
-                    movies_data += f"Rating: {movie.get('popular', 'N/A')}/5, "
-                    movies_data += f"Genre: {movie.get('genre', 'Unknown')}, "
-                    movies_data += f"Age: {movie.get('age_group', 'General')}{runtime_display}\n"
+        if filtered_movies.empty:
+            return "I don't have any movies to analyze based on your previous search."
 
+        try:
+            if self.model:
+                # Prepare movie data for analysis
+                movies_data = []
+                for _, movie in filtered_movies.head(10).iterrows():  # Limit to 10 for analysis
+                    year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+                    genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+                    rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
+                    movies_data.append({
+                        'title': movie['name'],
+                        'year': year,
+                        'genre': genre,
+                        'popularity_rating': rating
+                    })
+
+                # Create prompt for analysis
                 prompt = f"""You are a movie recommendation chatbot. The user is asking: "{query}"
 
 Here are the movies from their previous search:
 {movies_data}
-
-CRITICAL: If user asks for a recommendation from the list (like "give me recommend from your list", "which one you recommend", "recommend from the list"), pick EXACTLY ONE movie from the list above and explain why it's the best choice. Do NOT generate a new search.
 
 Give a SHORT, conversational response (2-3 sentences max). Examples:
 
@@ -749,199 +988,204 @@ User asks "recommend from the list" → Pick ONE specific movie and explain why
 User asks "are they suitable for kids?" → Simple yes/no with quick reason
 User asks about ratings → Brief comparison or explanation
 
-Always pick ONE specific movie when asked for recommendations. Be friendly but CONCISE."""
+Be friendly but CONCISE. Keep it short and helpful."""
 
                 response = self.model.generate_content(prompt)
                 return response.text.strip()
             else:
                 return self.generate_basic_analytical_response(filtered_movies, query)
+
         except Exception as e:
-            print(f"Error generating analytical response: {e}")
             return self.generate_basic_analytical_response(filtered_movies, query)
 
     def generate_basic_analytical_response(self, filtered_movies, query):
         """Generate basic analytical response without AI - simple fallback."""
-        if filtered_movies.empty:
-            return "I don't have any movies to analyze from your previous search."
+        if len(filtered_movies) == 0:
+            return "I don't have any movies to analyze based on your search."
 
-        query_lower = query.lower()
-        
-        if any(word in query_lower for word in ['recommend', 'suggest', 'pick', 'choose', 'best']):
-            # Pick the top-rated movie
-            top_movie = filtered_movies.iloc[0]
-            return f"I'd recommend '{top_movie['name']}' - it has a high rating and seems like a great choice!"
-        
-        elif any(word in query_lower for word in ['kid', 'child', 'family']):
-            family_movies = filtered_movies[filtered_movies['age_group'].isin(['Kids', 'Family', 'General'])]
-            if not family_movies.empty:
-                return f"Yes, most of these are family-friendly. I'd especially recommend '{family_movies.iloc[0]['name']}'."
-            else:
-                return "These movies might be better suited for older audiences."
-        
-        elif 'rating' in query_lower:
-            avg_rating = filtered_movies['popular'].mean()
-            return f"The average rating of these movies is {avg_rating:.1f}/5. The highest rated is '{filtered_movies.iloc[0]['name']}'."
-        
-        else:
-            return f"I found {len(filtered_movies)} movies matching your criteria. Would you like me to recommend one?"
+        # Very basic response that doesn't rely on specific keywords
+        if len(filtered_movies) == 1:
+            movie = filtered_movies.iloc[0]
+            year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+            rating = movie['popular'] if pd.notna(movie['popular']) else 'Unknown'
+            genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown'
+            return f"Looking at \"{movie['name']}\" ({year}) - it has a popularity rating of {rating} in the {genre} category."
+
+        # For multiple movies, provide general statistics
+        total_movies = len(filtered_movies)
+        avg_rating = filtered_movies['popular'].mean() if not filtered_movies['popular'].isnull().all() else 0
+        return f"I found {total_movies} movies with an average popularity rating of {avg_rating:.1f}. Let me know what specific aspect you'd like to know more about."
 
     def generate_fallback_response(self, filtered_movies, params=None):
         """Generate a basic response without AI."""
         if filtered_movies.empty:
-            return "I couldn't find any movies matching your criteria. Try adjusting your preferences!"
+            return "I couldn't find any movies matching your criteria. Please try a different search."
 
-        response_parts = []
-        
-        # Create context-aware introduction
+        # Generate contextual intro based on parameters
+        intro = "Here are some movie recommendations"
         if params:
             criteria = []
             if params.get('genre'):
-                criteria.append(f"{params['genre'].lower()}")
+                criteria.append(f"{params['genre'].lower()} movies")
             if params.get('age_group'):
-                criteria.append(f"for {params['age_group'].lower()}")
+                criteria.append(f"suitable for {params['age_group'].lower()}")
             if params.get('year_range'):
-                if len(params['year_range']) == 2 and params['year_range'][0] == params['year_range'][1]:
-                    criteria.append(f"from {params['year_range'][0]}")
-                else:
-                    criteria.append(f"from {params['year_range'][0]}-{params['year_range'][1]}")
+                criteria.append(f"from {params['year_range']}")
             if params.get('country'):
                 criteria.append(f"from {params['country']}")
-            
+
             if criteria:
-                intro = f"Here are some movie recommendations {' '.join(criteria)}:"
-            else:
-                intro = "Here are some movie recommendations:"
-        else:
-            intro = "Here are some movie recommendations:"
-        
-        response_parts.append(intro)
+                # Handle the grammar properly to avoid "for suitable for"
+                if len(criteria) == 1 and criteria[0].startswith('suitable for'):
+                    intro += f" {criteria[0]}"
+                else:
+                    intro += f" for {' and '.join(criteria)}"
 
-        # Add movie list
-        for i, (_, movie) in enumerate(filtered_movies.head(6).iterrows(), 1):
-            movie_line = f"• <span class='movie-title'>{movie['name']}</span>"
-            
-            if pd.notna(movie.get('released')):
-                movie_line += f" <span class='movie-year'>({int(movie['released'])})</span>"
-            
-            if pd.notna(movie.get('genre')):
-                movie_line += f" <span class='movie-genre'>{movie['genre']}</span>"
-            
-            if pd.notna(movie.get('age_group')):
-                movie_line += f" <span class='movie-age'>{movie['age_group']}</span>"
-            
-            runtime_display = format_runtime_display(movie.get('runtime', 0))
-            if runtime_display:
-                movie_line += f" <span class='movie-runtime'>{runtime_display}</span>"
-            
-            response_parts.append(movie_line)
+        intro += ":\n\n"
 
-        return '\n'.join(response_parts)
+        response = intro
+        for _, movie in filtered_movies.iterrows():
+            year = int(movie['released']) if pd.notna(movie['released']) else 'Unknown'
+            genre = movie['genre'] if pd.notna(movie['genre']) else 'Unknown genre'
+            # Format runtime to hours and minutes
+            runtime_text = ""
+            if pd.notna(movie['runtime']) and movie['runtime'] != '':
+                try:
+                    runtime_minutes = int(float(movie['runtime']))
+                    if runtime_minutes > 0:
+                        hours = runtime_minutes // 60
+                        minutes = runtime_minutes % 60
+                        if hours > 0:
+                            runtime_text = f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
+                        else:
+                            runtime_text = f"{minutes}m"
+                except (ValueError, TypeError):
+                    runtime_text = ""
+
+            response += f"• <span class='movie-title'>{movie['name']}</span> <span class='movie-year'>({year})</span> <span class='movie-genre'>{genre}</span><span class='movie-runtime'>{runtime_text}</span>\n"
+
+        return response
 
 
 def initialize_system():
     """Initialize the movie recommendation system."""
-    try:
-        csv_file_path = 'MergeAndCleaned_Movies.csv'
-        if not os.path.exists(csv_file_path):
-            raise FileNotFoundError(f"CSV file not found: {csv_file_path}")
-        
-        global recommender
-        recommender = MovieRecommender(csv_file_path)
-        print(f"Successfully loaded {len(recommender.movies)} movies")
-        print("System initialized successfully!")
-        return True
-    except Exception as e:
-        print(f"Failed to initialize system: {str(e)}")
-        return False
+    global recommender
+    print("Initializing Movie Recommendation System...")
+
+    # Initialize the recommender
+    csv_file = "attached_assets/MergeAndCleaned_Movies.csv"
+    recommender = MovieRecommender(csv_file)
+
+    print("System initialized successfully!")
 
 
-# Flask routes
-@app.route('/')
-def index():
-    return render_template_string(open('index.html', 'r', encoding='utf-8').read())
+def setup_routes():
+    """Setup Flask routes."""
 
-def get_user_id():
-    """Get or create user session ID"""
-    if 'user_id' not in session:
-        session['user_id'] = str(uuid.uuid4())
-    return session['user_id']
+    @app.route('/')
+    def index():
+        with open('index.html', 'r', encoding='utf-8') as f:
+            return f.read()
 
-def save_conversation(user_id, user_query, response):
-    """Save conversation to memory"""
-    if user_id not in conversation_memory:
-        conversation_memory[user_id] = []
-    
-    conversation_memory[user_id].append({
-        'timestamp': datetime.now(),
-        'user': user_query,
-        'assistant': response
-    })
-    
-    # Keep only last 10 exchanges
-    if len(conversation_memory[user_id]) > 10:
-        conversation_memory[user_id] = conversation_memory[user_id][-10:]
+    def get_user_id():
+        """Get or create user session ID"""
+        # Use a fixed user ID for API testing, or session-based for web interface
+        if request.headers.get('Content-Type') == 'application/json':
+            # For API requests, use a fixed user ID to maintain conversation
+            return 'api_user'
+        else:
+            # For web interface, use session-based user ID
+            if 'user_id' not in session:
+                session['user_id'] = str(uuid.uuid4())
+            return session['user_id']
 
-def get_conversation_context(user_id):
-    """Get recent conversation context for user"""
-    if user_id not in conversation_memory:
-        return ""
-    
-    context_parts = []
-    for entry in conversation_memory[user_id][-5:]:  # Last 5 exchanges
-        context_parts.append(f"User: {entry['user']}")
-        context_parts.append(f"Assistant: {entry['assistant'][:100]}...")
-    
-    return "\n".join(context_parts)
+    def save_conversation(user_id, user_query, response):
+        """Save conversation to memory"""
+        if user_id not in conversation_memory:
+            conversation_memory[user_id] = []
 
-@app.route('/recommend', methods=['POST'])
-def recommend():
-    try:
-        data = request.get_json()
-        query = data.get('query', '').strip()
+        conversation_memory[user_id].append({
+            'timestamp': datetime.now().isoformat(),
+            'user_query': user_query,
+            'response': response
+        })
 
-        if not query:
-            return jsonify({'error': 'No query provided'}), 400
+        # Keep only last 10 conversations to avoid memory overflow
+        if len(conversation_memory[user_id]) > 10:
+            conversation_memory[user_id] = conversation_memory[user_id][-10:]
 
-        user_id = get_user_id()
+    def get_conversation_context(user_id):
+        """Get recent conversation context for user"""
+        if user_id not in conversation_memory:
+            return ""
 
-        # Handle reset conversation request
-        if query == '__RESET_CONVERSATION__':
-            if user_id in conversation_memory:
-                conversation_memory[user_id] = []
-            return jsonify({'recommendation': 'Conversation reset successfully'})
+        if not conversation_memory[user_id]:
+            return ""
 
-        # Get conversation context for better understanding
-        context = get_conversation_context(user_id)
+        # For better context quality, return only the last conversation
+        # This prevents confusion between different topics/genres
+        context = "Previous conversation:\n"
+        last_conv = conversation_memory[user_id][-1]  # Only last conversation
+        context += f"User: {last_conv['user_query']}\n"
+        context += f"Assistant: {last_conv['response'][:150]}...\n\n"
 
-        # Get movie recommendation with context
-        recommendation = recommender.get_recommendation(query, context)
+        return context
 
-        # Save conversation to memory
-        save_conversation(user_id, query, recommendation)
+    @app.route('/recommend', methods=['POST'])
+    def recommend():
+        try:
+            data = request.get_json()
+            query = data.get('query', '')
 
-        return jsonify({'recommendation': recommendation})
+            if not query:
+                return jsonify({'error': 'No query provided'}), 400
 
-    except Exception as e:
-        print(f"Error in recommend endpoint: {str(e)}")
-        return jsonify({'error': 'An error occurred processing your request'}), 500
+            user_id = get_user_id()
+
+            # Handle reset conversation request
+            if query == '__RESET_CONVERSATION__':
+                if user_id in conversation_memory:
+                    conversation_memory[user_id] = []
+                return jsonify({'recommendation': 'Conversation reset successfully'})
+
+            # Get conversation context for better understanding
+            context = get_conversation_context(user_id)
+
+            # Get movie recommendation with context
+            recommendation = recommender.get_recommendation(query, context)
+
+            # Save conversation to memory
+            save_conversation(user_id, query, recommendation)
+
+            return jsonify({'recommendation': recommendation})
+
+        except Exception as e:
+            print(f"Error in recommend endpoint: {str(e)}")
+            return jsonify({'error': 'An error occurred processing your request'}), 500
+
 
 def start_server():
     """Start the Flask development server."""
+    print("Starting Flask server...")
+    print("Open your browser and go to: http://localhost:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
 
 def main():
     """Main function to run the application."""
     print("=" * 50)
     print("Movie Recommendation Chatbot")
     print("=" * 50)
-    
-    print("Initializing Movie Recommendation System...")
-    if initialize_system():
-        print("Starting Flask server...")
-        print("Open your browser and go to: http://localhost:5000")
-        start_server()
-    else:
-        print("Failed to initialize the system. Please check the error messages above.")
 
-if __name__ == "__main__":
+    # Initialize the system
+    initialize_system()
+
+    # Setup Flask routes
+    setup_routes()
+
+    # Start the server
+    start_server()
+
+
+if __name__ == '__main__':
     main()
