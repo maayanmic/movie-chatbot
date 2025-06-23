@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Movie Recommendation System
 מערכת המלצות סרטים חכמה עם עיבוד שפה טבעית
 
@@ -46,3 +47,6 @@ python movie_chat.py
 
 ## הערה
 המערכת תעבוד במצב בסיסי ללא מפתח API.
+=======
+# movie-chatbot
+>>>>>>> 306bf97e7f4bb03f6f0cb33e3a6ff6b680c34e07
