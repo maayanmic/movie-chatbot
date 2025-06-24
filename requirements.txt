@@ -1,11 +1,5 @@
-setuptools>=65.0
-wheel
-cython
-
-numpy==1.24.4
-scikit-learn==1.2.2
-flask
+flask==2.3.3
 gunicorn
-openai
 pandas
+openai
 nltk

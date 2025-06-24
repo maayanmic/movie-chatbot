@@ -7,6 +7,4 @@ services:
     startCommand: gunicorn movie_chat:app
     envVars:
       - key: GEMINI_API_KEY
-        value: your_actual_api_key
-    build:
-      pythonVersion: 3.10
+        value: your_real_key_here
