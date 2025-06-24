@@ -1073,7 +1073,7 @@ def initialize_system():
     print("Initializing Movie Recommendation System...")
 
     # Initialize the recommender
-    csv_file = "attached_assets/MergeAndCleaned_Movies.csv"
+    csv_file = "MergeAndCleaned_Movies.csv"
     recommender = MovieRecommender(csv_file)
 
     print("System initialized successfully!")
