@@ -1,5 +1,10 @@
-flask==2.3.3
-pandas==2.0.3
-google-generativeai==0.3.2
-gunicorn==21.2.0
+numpy==1.24.4
+cython
+setuptools>=65.0
+wheel
 scikit-learn==1.2.2
+flask
+gunicorn
+openai
+pandas
+nltk
