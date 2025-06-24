@@ -8,3 +8,6 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         value: YOUR_API_KEY_HERE
+
+build:
+  pythonVersion: 3.10
