@@ -1,7 +1,8 @@
-flask==2.3.3
-gunicorn
+numpy
 pandas
-openai
+flask
+gunicorn
 nltk
+openai
 google-generativeai
-
+scikit-learn
