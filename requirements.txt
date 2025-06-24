@@ -1,5 +1,7 @@
-setuptools>=65.0
+setuptools==65.5.1
 wheel
+build
+pyproject-hooks
 cython
 numpy==1.24.4
 scikit-learn==1.2.2
