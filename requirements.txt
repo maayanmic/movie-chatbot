@@ -1,6 +1,8 @@
+setuptools>=65.0
+wheel
+cython
+
 numpy==1.24.4
-setuptools==65.5.1
-wheel==0.41.2
 scikit-learn==1.2.2
 flask
 gunicorn
